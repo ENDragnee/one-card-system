@@ -1,58 +1,42 @@
 // app/onboarding/page.tsx
 "use client";
 
-import React, { useState } from 'react';
-import { LoginPage } from '@/components/LoginPage';
-import { ChangePasswordPage } from './_components/ChangePasswordPage';
-import { ProfileFormPage } from './_components/ProfileFormPage';
-import { Button } from '@/components/ui/button';
-
-type OnboardingStep = "login" | "change-password" | "profile" | "completed";
+import { useSession } from "next-auth/react";
+import { LoginPage } from "@/components/LoginPage";
+import { ProfileFormPage } from "./_components/ProfileFormPage";
+import { Role } from "@prisma/client";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 export default function OnboardingPage() {
-  const [currentStep, setCurrentStep] = useState<OnboardingStep>("login");
+  const { data: session, status } = useSession();
+  const router = useRouter();
 
-  const handleLoginSuccess = () => {
-    setCurrentStep("change-password");
-  };
-
-  const handleChangePasswordSuccess = () => {
-    setCurrentStep("profile");
-  };
-
-  const handleProfileSaveSuccess = () => {
-    setCurrentStep("completed");
-    // Optionally redirect or show a final message
-    // For now, just log and show a completed message
-    console.log("Onboarding completed!");
-  };
-
-  const renderStep = () => {
-    switch (currentStep) {
-      case "login":
-        return <LoginPage onLoginSuccess={handleLoginSuccess} />;
-      case "change-password":
-        return <ChangePasswordPage onChangePasswordSuccess={handleChangePasswordSuccess} />;
-      case "profile":
-        return <ProfileFormPage onProfileSaveSuccess={handleProfileSaveSuccess} />;
-      case "completed":
-        return (
-          <div className="text-center p-10 bg-white rounded-lg shadow-lg max-w-md mx-auto">
-            <h2 className="text-2xl font-semibold text-green-600 mb-4">Onboarding Complete!</h2>
-            <p className="text-gray-700">Thank you for setting up your account.</p>
-            <Button onClick={() => setCurrentStep("login")} className="mt-6">
-                Start Over (Demo)
-            </Button>
-          </div>
-        );
-      default:
-        return null;
+  useEffect(() => {
+    // If a Registrar is logged in and somehow lands here, redirect them.
+    // Middleware should primarily handle this, but this is a client-side safeguard.
+    if (status === "authenticated" && session?.user?.role === Role.Registrar) {
+      router.replace("/dashboard");
     }
-  };
+  }, [session, status, router]);
 
-  return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-4 bg-muted">
-      {renderStep()}
-    </main>
-  );
+  if (status === "loading") {
+    return <div>Loading session...</div>; // Or a proper skeleton loader
+  }
+
+  // If authenticated as Student, show onboarding content
+  if (session?.user?.role === Role.Student) {
+    return (
+      <div className="container mx-auto p-4">
+        <h1 className="text-2xl font-bold">Welcome to Onboarding, {session.user.name || session.user.username}!</h1>
+        <p>This is your student onboarding area. Complete the steps below to get started.</p>
+        <ProfileFormPage onProfileSaveSuccess={()=>{console.log("Save Success")}}/>
+        {/* Add any other onboarding components or steps here */}
+      </div>
+    );
+  }
+
+  // If unauthenticated, or any other case (e.g. no role but authenticated), show LoginPage.
+  // This includes status === "unauthenticated"
+  return <LoginPage />;
 }

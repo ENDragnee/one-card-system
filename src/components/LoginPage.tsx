@@ -5,7 +5,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { useState } from "react";
-import { signIn } from "next-auth/react";
+import { signIn, getSession, useSession } from "next-auth/react";
+import { useRouter } from "next/navigation"; // Use App Router's router
+import { Role } from "@prisma/client"; // Import Role enum
 
 import { Button } from "@/components/ui/button";
 import {
@@ -26,13 +28,12 @@ const loginFormSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginFormSchema>;
 
-interface LoginPageProps {
-  onLoginSuccess: () => void;
-}
-
-export function LoginPage({ onLoginSuccess }: LoginPageProps) {
+// Removed onLoginSuccess prop as redirection is handled internally
+export function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const router = useRouter();
+  const { update: updateSession } = useSession(); // To refresh session after login
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginFormSchema),
@@ -50,31 +51,41 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
       const result = await signIn("credentials", {
         username: data.username,
         password: data.password,
-        redirect: false, // We will handle success/failure manually
+        redirect: false, // We handle redirection manually
       });
 
       setIsLoading(false);
 
       if (result?.error) {
-        // Based on NextAuth.js documentation and common practice:
-        // "CredentialsSignin" is a common error code for invalid credentials.
         if (result.error === "CredentialsSignin") {
           setAuthError("Invalid username or password. Please try again.");
         } else {
-          setAuthError(`Login failed: ${result.error}.`);
+          setAuthError(`Login failed: ${result.error}. Please try again.`);
         }
       } else if (result?.ok) {
-        // Login was successful
-        onLoginSuccess();
+        // Login was successful, update session to get role, then redirect
+        await updateSession(); // Force a session refetch to get fresh data with role
+        const currentSession = await getSession(); // Fetch the latest session
+
+        if (currentSession?.user?.role) {
+          if (currentSession.user.role === Role.Student) {
+            router.replace("/onboarding"); // Stay on /onboarding to see content
+          } else if (currentSession.user.role === Role.Registrar) {
+            router.replace("/dashboard");
+          } else {
+            router.replace("/"); // Fallback
+          }
+        } else {
+          setAuthError("Login successful, but role could not be determined. Redirecting to home.");
+          router.replace("/");
+        }
       } else {
-        // This case might occur if the signIn promise resolves without error but also without ok status,
-        // or if result is undefined (e.g., if the request was aborted).
         setAuthError("Login failed. Please try again.");
       }
     } catch (error) {
       setIsLoading(false);
       console.error("Sign in error:", error);
-      setAuthError("An unexpected error occurred during sign in. Please try again.");
+      setAuthError("An unexpected error occurred. Please try again.");
     }
   }
 
