@@ -5,7 +5,7 @@ import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import Logo from "./ui/Logo";
-import { universities } from "../../types/list-of-uni";
+import { universities } from "../types/list-of-uni";
 
 export default function SignIn() {
   const [selectedUniversity, setSelectedUniversity] = useState("");

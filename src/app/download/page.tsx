@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { IdCardProps } from '../../../types/id-card';
+import { IdCardProps } from '../../types/id-card';
 
 const universities = [
   { id: 2, name: 'Addis Ababa University' },

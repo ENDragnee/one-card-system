@@ -3,7 +3,7 @@ import db from "@/lib/db";
 import { promises as fs } from "fs";
 import path from "path";
 import { v4 as uuidv4 } from "uuid";
-import { universities } from "../../../../types/list-of-uni";
+import { universities } from "../../../types/list-of-uni";
 
 const validatePhoneNumber = (phoneNumber) => {
   const phoneRegex = /^\+?[1-9]\d{1,14}$/;

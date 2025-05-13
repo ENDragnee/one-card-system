@@ -2,7 +2,7 @@ import { getToken } from 'next-auth/jwt';
 import { NextResponse } from 'next/server';
 
 // Define public routes that don't require authentication
-const publicRoutes = ['/landing', '/auth/signin', '/auth/signup'];
+const publicRoutes = ['/landing', '/auth/signin', '/auth/signup', '/onboarding', '/privacy-policy', '/terms-of-service'];
 
 export async function middleware(request) {
   const token = await getToken({ req: request }).catch(() => null);

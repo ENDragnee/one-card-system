@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import React, { Suspense } from 'react';
 import IdCards from '@/components/id-card-atm';
-import { IdCardProps } from '../../../types/id-card';
+import { IdCardProps } from '../../types/id-card';
 import { useSearchParams } from 'next/navigation';
 
 const PageContent = () => {

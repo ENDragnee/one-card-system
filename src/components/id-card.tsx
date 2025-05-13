@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import { IdCardProps } from '../../types/id-card'
+import { IdCardProps } from '../types/id-card'
 import { useEffect, useState } from 'react'
 
 export default function IdCard({

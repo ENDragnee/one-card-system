@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import { useEffect, useState } from 'react'
 import JsBarcode from "jsbarcode";
-import { IdCardProps } from '../../types/id-card'
+import { IdCardProps } from '../types/id-card'
 
 interface IdCardsProps {
   cards: IdCardProps[]
