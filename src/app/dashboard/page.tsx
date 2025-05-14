@@ -12,6 +12,7 @@ import { initialStudents, departments as departmentList } from "@/lib/data"; // 
 import { Student } from "@/types";
 import { Sidebar } from "@/components/layout/sidebar";
 
+
 interface AnalyticsCardProps {
   title: string;
   value: string | number;
@@ -107,7 +108,7 @@ export default function DashboardPage() {
 
   return (
     <>
-      <PageHeader title="Dashboard" />
+      <PageHeader title="Dashboard" showSearch={true}/>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
         <AnalyticsCard title="Total Students" value={totalStudents} />
         <AnalyticsCard title="Departments" value={totalDepartments} />

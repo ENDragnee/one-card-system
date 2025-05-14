@@ -90,51 +90,55 @@ export function LoginPage() {
   }
 
   return (
-    <OnboardingCard
-      title="Welcome Back!"
-      description="Please sign in to continue."
-    >
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          {authError && (
-            <div
-              className="mb-4 rounded-md border border-red-200 bg-red-100 p-3 text-sm text-red-700"
-              role="alert"
-            >
-              {authError}
-            </div>
-          )}
-          <FormField
-            control={form.control}
-            name="username"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Username</FormLabel>
-                <FormControl>
-                  <Input placeholder="Enter your username" {...field} disabled={isLoading} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="password"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Password</FormLabel>
-                <FormControl>
-                  <Input type="password" placeholder="Enter your password" {...field} disabled={isLoading} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? "Signing In..." : "Sign In"}
-          </Button>
-        </form>
-      </Form>
-    </OnboardingCard>
+    <div className="flex flex-col justify-center items-center my-40 p-4">
+      <OnboardingCard
+        title="Welcome to Samara Univiersity Card Sysytem"
+        description="Please sign in to continue."
+      >
+        <div className="w-full max-w-md flex flex-col space-y-4 m-auto">
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              {authError && (
+                <div
+                  className="mb-4 rounded-md border border-red-200 bg-red-100 p-3 text-sm text-red-700"
+                  role="alert"
+                >
+                  {authError}
+                </div>
+              )}
+              <FormField
+                control={form.control}
+                name="username"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Username</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter your username" {...field} disabled={isLoading} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Password</FormLabel>
+                    <FormControl>
+                      <Input type="password" placeholder="Enter your password" {...field} disabled={isLoading} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? "Signing In..." : "Sign In"}
+              </Button>
+            </form>
+          </Form>
+        </div>
+      </OnboardingCard>
+    </div>
   );
 }

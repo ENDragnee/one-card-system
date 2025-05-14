@@ -17,7 +17,7 @@ interface OnboardingCardProps {
 
 export function OnboardingCard({ title, description, children, className }: OnboardingCardProps) {
   return (
-    <Card className={`w-full max-w-md ${className}`}> {/* Original was 420px, max-w-md is ~448px */}
+    <Card className={`w-full max-w-full ${className}`}> {/* Original was 420px, max-w-md is ~448px */}
       <CardHeader className="text-center">
         <CardTitle className="text-2xl md:text-3xl">{title}</CardTitle> {/* Adjusted font size */}
         <CardDescription>{description}</CardDescription>

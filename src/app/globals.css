@@ -75,3 +75,13 @@ body {
   font-family: 'CustomFont';
   src: url('/aura.ttf') format('truetype');
 }
+
+/* For the spinner animation */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.animate-spin {
+  animation: spin 1s linear infinite;
+}

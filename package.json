@@ -19,6 +19,7 @@
     "@radix-ui/react-select": "^2.1.4",
     "@radix-ui/react-separator": "^1.1.6",
     "@radix-ui/react-slot": "^1.2.2",
+    "@radix-ui/react-switch": "^1.2.4",
     "@radix-ui/react-tabs": "^1.1.2",
     "bcrypt": "^5.1.1",
     "bwip-js": "^4.5.1",
@@ -37,6 +38,7 @@
     "react-hook-form": "^7.56.3",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
+    "uuid": "^11.1.0",
     "zod": "^3.24.4"
   },
   "devDependencies": {

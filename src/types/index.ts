@@ -12,8 +12,28 @@ export interface Student {
 }
 
 export const departments = [
-  "Software Engineering", "Mechanical Engineering", "Applied Science",
-  "Law", "Accounting", "Finance", "Business Administration"
+  "Freshman",
+  "Computer Science",
+  "Software Engineering",
+  "Electrical Engineering",
+  "Mechanical Engineering",
+  "Civil Engineering",
+  "Business Administration",
+  "Economics",
+  "Law",
+  "Medicine",
+  "Nursing",
+  "Mathematics",
+  "Physics",
+  "Chemistry",
+  "Biology",
+  "History",
+  "Literature",
+  "Psychology",
+  "Sociology",
+  "Architecture",
+  "Fine Arts",
+  "Other", // Good to have an "Other" option
 ] as const;
 
 export type Department = typeof departments[number];
