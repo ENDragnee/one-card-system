@@ -1,6 +1,6 @@
 // app/dashboard/page.tsx
 "use client";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { PageHeader } from "@/components/layout/page-header";
 import {
   Card,
@@ -8,22 +8,37 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { initialStudents, departments as departmentList } from "@/lib/data"; // Use your actual data source
-import { Student } from "@/types";
-
+import { Skeleton } from "@/components/ui/skeleton"; // For loading state
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Terminal } from "lucide-react";
 
 interface AnalyticsCardProps {
   title: string;
   value: string | number;
   description?: string;
+  isLoading?: boolean;
 }
 
-function AnalyticsCard({ title, value, description }: AnalyticsCardProps) {
+function AnalyticsCard({ title, value, description, isLoading }: AnalyticsCardProps) {
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">
+            <Skeleton className="h-4 w-2/3" />
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Skeleton className="h-8 w-1/2 mb-2" />
+          {description && <Skeleton className="h-3 w-full" />}
+        </CardContent>
+      </Card>
+    );
+  }
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        {/* Optional: Icon here */}
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-bold">{value}</div>
@@ -40,7 +55,30 @@ interface DataListItem {
   value: number | string;
 }
 
-function DataListCard({ title, items }: { title: string, items: DataListItem[] }) {
+interface DataListCardProps {
+  title: string;
+  items: DataListItem[];
+  isLoading?: boolean;
+}
+
+function DataListCard({ title, items, isLoading }: DataListCardProps) {
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle><Skeleton className="h-5 w-1/3" /></CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {[...Array(3)].map((_, i) => (
+            <li key={i} className="flex justify-between text-sm">
+              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className="h-4 w-1/4" />
+            </li>
+          ))}
+        </CardContent>
+      </Card>
+    );
+  }
   return (
     <Card>
       <CardHeader>
@@ -64,58 +102,85 @@ function DataListCard({ title, items }: { title: string, items: DataListItem[] }
   );
 }
 
+interface DashboardData {
+  totalStudents: number;
+  totalDepartments: number;
+  averageYearLevel: string;
+  studentsByDept: DataListItem[];
+  studentsByYear: DataListItem[];
+}
 
 export default function DashboardPage() {
-  // In a real app, students data would come from a context, Zustand, or API fetch
-  const [students, setStudents] = useState<Student[]>(initialStudents);
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const totalStudents = students.length;
-  const totalDepartments = departmentList.length;
-  const averageYearLevel = useMemo(() => {
-    if (students.length === 0) return "-";
-    const sum = students.reduce((acc, s) => acc + s.year, 0);
-    return (sum / students.length).toFixed(1);
-  }, [students]);
-
-  const studentsByDept = useMemo(() => {
-    const counts: Record<string, number> = {};
-    departmentList.forEach(dept => counts[dept] = 0);
-    students.forEach(student => {
-      if (counts.hasOwnProperty(student.department)) {
-        counts[student.department]++;
+  useEffect(() => {
+    async function fetchData() {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await fetch("/api/dashboard/analytics");
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `Error: ${response.status}`);
+        }
+        const result: DashboardData = await response.json();
+        setData(result);
+      } catch (err: any) {
+        console.error("Failed to fetch dashboard data:", err);
+        setError(err.message || "An unknown error occurred");
+      } finally {
+        setIsLoading(false);
       }
-    });
-    return Object.entries(counts).map(([label, value]) => ({ label, value }));
-  }, [students]);
+    }
+    fetchData();
+  }, []);
 
-  const studentsByYear = useMemo(() => {
-    const yearMap: Record<number, string> = { 1: '1st Year', 2: '2nd Year', 3: '3rd Year', 4: '4th Year', 5: '5th+ Year' };
-    const counts: Record<string, number> = {};
-    Object.values(yearMap).forEach(label => counts[label] = 0);
-
-    students.forEach(student => {
-      const yearLabel = yearMap[student.year as keyof typeof yearMap] || `${student.year}th Year`;
-       if (counts.hasOwnProperty(yearLabel)) {
-        counts[yearLabel]++;
-      } else {
-        counts[yearLabel] = 1; // Should not happen if yearMap is comprehensive
-      }
-    });
-    return Object.entries(counts).map(([label, value]) => ({ label, value }));
-  }, [students]);
-
+  if (error) {
+    return (
+      <>
+        <PageHeader title="Dashboard" />
+        <Alert variant="destructive" className="mt-6">
+          <Terminal className="h-4 w-4" />
+          <AlertTitle>Error Fetching Data</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      </>
+    );
+  }
 
   return (
     <>
-      <PageHeader title="Dashboard" showSearch={true}/>
+      <PageHeader title="Dashboard" showSearch={false} /> {/* Disabled search for now, can be re-enabled */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
-        <AnalyticsCard title="Total Students" value={totalStudents} />
-        <AnalyticsCard title="Departments" value={totalDepartments} />
-        <AnalyticsCard title="Average Year Level" value={averageYearLevel} />
+        <AnalyticsCard
+          title="Total Students"
+          value={data?.totalStudents ?? "-"}
+          isLoading={isLoading}
+        />
+        <AnalyticsCard
+          title="Departments"
+          value={data?.totalDepartments ?? "-"}
+          isLoading={isLoading}
+        />
+        <AnalyticsCard
+          title="Average Year Level"
+          value={data?.averageYearLevel ?? "-"}
+          isLoading={isLoading}
+        />
       </div>
       <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
-        <DataListCard title="Students per Department" items={studentsByDept} />
-        <DataListCard title="Students per Year" items={studentsByYear} />
+        <DataListCard
+          title="Students per Department"
+          items={data?.studentsByDept ?? []}
+          isLoading={isLoading}
+        />
+        <DataListCard
+          title="Students per Year"
+          items={data?.studentsByYear ?? []}
+          isLoading={isLoading}
+        />
       </div>
     </>
   );

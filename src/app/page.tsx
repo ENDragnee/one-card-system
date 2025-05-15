@@ -10,7 +10,7 @@ export default async function Loading() {
 
   if (session) {
     if (session.user?.role === Role.Registrar) {
-      redirect('/dashboard');
+      redirect('/admin/dashboard');
     } else {
       redirect('/onboarding');
     }

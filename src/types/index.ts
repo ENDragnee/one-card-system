@@ -6,7 +6,7 @@ export interface Student {
   lastName: string;
   username: string;
   password: string;
-  barcodeId: string;
+  barcode_id: string;
   email: string;
   phone?: string;
   year: number;
@@ -56,3 +56,13 @@ export const yearMap: Record<number, string> = {
   5: "5th+ Year",
 };
 export type YearLabel = typeof yearMap[keyof typeof yearMap];
+
+export interface StudentIdData {
+  id: string; // Student's unique database ID (can be number too, but string is safer for URLs)
+  name: string; // Full name: "ABEBECH KEBEBEW"
+  username: string; // ID Number for the card: "A2STU/ID/0012345"
+  department: string | null; // "Software Engineering"
+  photo: string | null; // URL to the photo
+  academicYear: string; // Formatted academic year string: "3rd Year / 2023-2024"
+  barcodeValue: string; // Value for the barcode, usually the username/student ID
+}

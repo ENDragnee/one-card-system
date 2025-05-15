@@ -1,6 +1,6 @@
 // components/student/student-profile-modal.tsx
 "use client";
-import { Student } from "@/types";
+import { Student, StudentIdData } from "@/types";
 import {
   Dialog,
   DialogContent,
@@ -23,6 +23,22 @@ interface StudentProfileModalProps {
   onDelete: (studentId: string) => void;
 }
 
+// Helper to map Student to StudentIdData
+export const mapStudentToIdData = (s: Student): StudentIdData => {
+  const currentAcademicYear = new Date().getFullYear();
+  const academicYearString = s.batch ? `${s.batch}${['st', 'nd', 'rd'][Number(s.batch)-1] || 'th'} Year / ${currentAcademicYear}-${currentAcademicYear + 1}` : `Not Set / ${currentAcademicYear}-${currentAcademicYear + 1}`;
+
+  return {
+    id: String(s.id),
+    name: s.name || `${s.firstName || ''} ${s.lastName || ''}`.trim() || "Unknown Student",
+    username: s.username, // This is the ID Number displayed on card
+    department: s.department || null,
+    photo: s.photo || null,
+    academicYear: academicYearString,
+    barcodeValue: s.barcode_id || s.username, // Prefer barcode_id if available
+  };
+};
+
 export function StudentProfileModal({
   student,
   isOpen,
@@ -37,23 +53,40 @@ export function StudentProfileModal({
   }
 
   const handlePrintId = () => {
-    alert(`Simulating ID print for ${student.firstName} ${student.lastName} (ID: ${student.id}).`);
+    if (!student) return;
+    const studentForIdCard: StudentIdData = mapStudentToIdData(student);
+    const studentsToPrint = [studentForIdCard];
+    try {
+      const queryParams = encodeURIComponent(JSON.stringify(studentsToPrint));
+      // Check URL length
+      if ((`/students/print-ids?students=${queryParams}`).length > 2000) {
+          alert("Data too long for URL. Cannot print."); // Basic alert
+          return;
+      }
+      window.open(`/students/print-ids?students=${queryParams}`, '_blank');
+    } catch (e) {
+        alert("Error preparing ID for printing.");
+        console.error("Error stringifying/encoding for print:", e);
+    }
   };
+
+  const studentFullName = student.name || `${student.firstName || ''} ${student.lastName || ''}`.trim();
+  const studentYearDisplay = student.batch ? `${student.batch}${['st', 'nd', 'rd'][Number(student.batch)-1] || 'th'} Year` : "Freshman";
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[650px]">
         <DialogHeader>
-          <DialogTitle>{`${student.name}`}'s Profile</DialogTitle>
+          <DialogTitle>{studentFullName}'s Profile</DialogTitle>
           <DialogDescription>Detailed information about the student.</DialogDescription>
         </DialogHeader>
         
         <div className="grid md:grid-cols-[150px_1fr] gap-6 py-4">
           <div className="flex flex-col items-center space-y-3">
             <Avatar className="h-36 w-36 border-2">
-              <AvatarImage src={student.photo} alt={student.name} />
-              <AvatarFallback className="text-4xl student-card-avatar-placeholder">
-                {getInitials(`${student.name}`)}
+              <AvatarImage src={student.photo || undefined} alt={studentFullName} />
+              <AvatarFallback className="text-4xl">
+                {getInitials(studentFullName)}
               </AvatarFallback>
             </Avatar>
             <Button variant="outline" size="sm" onClick={handlePrintId}>
@@ -61,22 +94,22 @@ export function StudentProfileModal({
             </Button>
           </div>
           <div className="space-y-3">
-            <ProfileDetail label="Full Name" value={`${student.name}`} />
+            <ProfileDetail label="Full Name" value={studentFullName} />
             <ProfileDetail label="Student ID" value={student.username} />
             <ProfileDetail label="Email" value={student.email} />
             <ProfileDetail label="Phone" value={student.phone || "N/A"} />
             <ProfileDetail label="Department" value={student.department || "Freshman"} />
-            <ProfileDetail label="Year" value={`${student.batch}${['st', 'nd', 'rd'][student.year-1] || 'th'} Year`|| "Freshman"} />
-            <ProfileDetail label="Gender" value={student.gender} />
+            <ProfileDetail label="Year" value={studentYearDisplay} />
+            <ProfileDetail label="Gender" value={student.gender || "N/A"} />
           </div>
         </div>
         <Separator />
         <DialogFooter className="mt-4">
-          <Button variant="destructive" onClick={() => onDelete(student.id)}>
-            <Icons.Delete className="h-4 w-4 mr-2" /> Delete Student
+          <Button variant="destructive" onClick={() => { onDelete(String(student.id)); onOpenChange(false); }}>
+            <Icons.Delete className="h-4 w-4 mr-2" /> Delete
           </Button>
-          <Button variant="default" onClick={() => { onOpenChange(false); onEdit(student.id); }}>
-            <Icons.Edit className="h-4 w-4 mr-2" /> Edit Profile
+          <Button variant="default" onClick={() => { onEdit(String(student.id)); onOpenChange(false); }}>
+            <Icons.Edit className="h-4 w-4 mr-2" /> Edit
           </Button>
         </DialogFooter>
       </DialogContent>

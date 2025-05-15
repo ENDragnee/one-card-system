@@ -18,6 +18,8 @@ interface StudentCardProps {
   onView: (studentId: string) => void;
   onEdit: (studentId: string) => void;
   onDelete?: (studentId: string) => void;
+  isSelected?: (studentId: string) => boolean;
+  onSelectToggle?: (id: number, isChecked: boolean) => void;
 }
 
 export function StudentCard({ student, onView, onEdit, onDelete }: StudentCardProps) {

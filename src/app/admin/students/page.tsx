@@ -1,4 +1,4 @@
-// app/students/page.tsx
+// app/admin/students/page.tsx
 "use client";
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { PageHeader } from "@/components/layout/page-header";
@@ -12,15 +12,19 @@ import {
 } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { Icons } from "@/components/icons";
-import { StudentCard } from "@/components/student/student-card"; // Needs update for new Student type
-import { StudentProfileModal } from "@/components/student/student-profile-modal"; // Needs update
-import { StudentFormModal, StudentFormData } from "@/components/student/student-form-modal"; // Needs significant update
-import { Student, departments, YEARS, Department, Gender } from "@/types"; // Ensure Student type matches API response
-import { useToast } from "@/hooks/use-toast"; // Or your custom hook path
-import { LoaderCircle } from 'lucide-react';
+import { StudentCard } from "@/components/student/student-card";
+import { StudentProfileModal, mapStudentToIdData } from "@/components/student/student-profile-modal";
+import { StudentFormModal, StudentFormData } from "@/components/student/student-form-modal";
+import { Student, departments, YEARS, StudentIdData } from "@/types"; // Ensure these are correctly defined
+import { useToast } from "@/hooks/use-toast";
+import { LoaderCircle, Printer } from 'lucide-react';
+import { Checkbox } from "@/components/ui/checkbox";
 
-// This initialStudents should be removed or used only for dev if API fails
-// const initialStudents: Student[] = []; 
+// Define BATCH_YEARS (example, adjust as needed)
+// This should ideally come from a shared config or be generated dynamically
+const CURRENT_YEAR = new Date().getFullYear();
+const BATCH_YEARS: string[] = Array.from({ length: 7 }, (_, i) => (CURRENT_YEAR - 3 + i).toString());
+
 
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
@@ -29,7 +33,7 @@ export default function StudentsPage() {
   const { toast } = useToast();
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterBatch, setFilterBatch] = useState<string>("all"); // Changed from filterYear
+  const [filterBatch, setFilterBatch] = useState<string>("all");
   const [filterDepartment, setFilterDepartment] = useState<string>("all");
 
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -37,24 +41,29 @@ export default function StudentsPage() {
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
-  // Memoize for StudentFormModal to prevent re-renders if students don't change
-  const existingStudentUsernames = useMemo(() => students.map(s => s.username.toLowerCase()), [students]);
-  const existingStudentEmails = useMemo(() => students.map(s => s.email.toLowerCase()), [students]);
+  const [selectedStudentIdsForPrint, setSelectedStudentIdsForPrint] = useState<Set<string>>(new Set());
 
+  const existingStudentUsernames = useMemo(() => students.map(s => s.username.toLowerCase()), [students]);
 
   const fetchStudents = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await fetch("/api/user/profile");
+      // Ensure this API endpoint returns an array of Student objects
+      // The Student type should have id (number or string), name (string), username (string), email (string)
+      // and other fields like photo, department, batch, gender etc.
+      const response = await fetch("/api/user/profile"); // Changed API endpoint
       if (!response.ok) {
-        throw new Error("Failed to fetch students");
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to fetch students");
       }
       const data: Student[] = await response.json();
       setStudents(data);
-    } catch (error) {
+      setFilteredStudents(data); // Initialize filtered students
+    } catch (error: any) {
       console.error(error);
-      toast({ title: "Error", description: "Could not load students.", variant: "destructive" });
-      setStudents([]); // Fallback to empty on error
+      toast({ title: "Error", description: error.message || "Could not load students.", variant: "destructive" });
+      setStudents([]);
+      setFilteredStudents([]);
     } finally {
       setIsLoading(false);
     }
@@ -64,12 +73,12 @@ export default function StudentsPage() {
     fetchStudents();
   }, [fetchStudents]);
 
-  // Apply filters and search
   useEffect(() => {
     let currentStudents = [...students];
 
     if (filterBatch !== "all") {
-      currentStudents = currentStudents.filter(s => s.year === Number(filterBatch));
+      // Assuming Student type has 'batch' as a string like "2023" or 'year' as a number
+      currentStudents = currentStudents.filter(s => String(s.batch) === filterBatch || String(s.year) === filterBatch);
     }
     if (filterDepartment !== "all") {
       currentStudents = currentStudents.filter(s => s.department === filterDepartment);
@@ -77,19 +86,17 @@ export default function StudentsPage() {
     if (searchTerm) {
       const lowerSearchTerm = searchTerm.toLowerCase();
       currentStudents = currentStudents.filter(s =>
-        s.firstName?.toLowerCase().includes(lowerSearchTerm) ||
-        s.lastName?.toLowerCase().includes(lowerSearchTerm) ||
+        s.name?.toLowerCase().includes(lowerSearchTerm) || // Assuming 'name' is full name
         s.username.toLowerCase().includes(lowerSearchTerm) ||
-        String(s.id).toLowerCase().includes(lowerSearchTerm) || // ID is number
+        String(s.id).toLowerCase().includes(lowerSearchTerm) ||
         s.email.toLowerCase().includes(lowerSearchTerm)
       );
     }
-    console.log("Filtered students based on search term:", currentStudents);
     setFilteredStudents(currentStudents);
   }, [students, searchTerm, filterBatch, filterDepartment]);
 
-  const handleViewStudent = (studentId: number) => {
-    const student = students.find(s => Number(s.id) === studentId);
+  const handleViewStudent = (studentId: string) => { // Changed to string if ID is string
+    const student = students.find(s => String(s.id) === studentId);
     if (student) {
       setSelectedStudent(student);
       setIsProfileModalOpen(true);
@@ -101,24 +108,25 @@ export default function StudentsPage() {
     setIsFormModalOpen(true);
   };
 
-  const handleEditStudent = (studentId: number) => {
-    const student = students.find(s => Number(s.id) === studentId);
+  const handleEditStudent = (studentId: string) => { // Changed to string
+    const student = students.find(s => String(s.id) === studentId);
     if (student) {
       setEditingStudent(student);
       setIsFormModalOpen(true);
     }
   };
 
-  const handleDeleteStudent = async (studentId: number) => {
+  const handleDeleteStudent = async (studentId: string) => { // Changed to string
     if (window.confirm(`Are you sure you want to delete student ID ${studentId}? This action cannot be undone.`)) {
       try {
-        const response = await fetch(`/api/user/profile/${studentId}`, { method: 'DELETE' });
+        // Ensure this API endpoint supports DELETE by student ID (which might be a number or string)
+        const response = await fetch(`/api/students/${studentId}`, { method: 'DELETE' });
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(errorData.error || "Failed to delete student");
         }
         toast({ title: "Success", description: `Student ID ${studentId} deleted.` });
-        setStudents(prev => prev.filter(s => Number(s.id) !== studentId));
+        fetchStudents(); // Re-fetch to update the list
         setIsProfileModalOpen(false);
         setSelectedStudent(null);
       } catch (error: any) {
@@ -127,55 +135,121 @@ export default function StudentsPage() {
     }
   };
 
-  const handleStudentFormSubmit = async (data: StudentFormData, originalId?: string) => {
+  const handleStudentFormSubmit = async (data: StudentFormData, originalUsername?: string) => {
+    setIsLoading(true); // Optional: set loading state for form submission
     const formData = new FormData();
+
     // Append all non-file fields from data
     (Object.keys(data) as Array<keyof StudentFormData>).forEach(key => {
-        if (key === 'photoFile' as keyof StudentFormData) return; // Skip file, handle separately
-        const value = data[key];
-        if (value !== undefined && value !== null && value !== '') {
-            formData.append(key, String(value));
-        } else if (value === null && ['phone', 'batch', 'gender', 'department'].includes(key)) {
-            // Explicitly send empty string for server to interpret as null for optional fields
-            formData.append(key, ""); 
-        }
+      if (key === 'photoFile') return; // Skip file, handle separately
+      const value = data[key];
+      if (value !== undefined && value !== null) { // Send empty strings if they are intentional
+          formData.append(key, String(value));
+      }
     });
 
-    if (data.pictureUrl && data.pictureUrl !== '') {
-        formData.append('pictureUrl', data.pictureUrl);
-    } else if (data.removePhoto) {
-        formData.append('removePhoto', 'true');
+    // Handle file upload
+    if (data.photoFile instanceof File) {
+      formData.append('photoFile', data.photoFile);
+    }
+    if (data.removePhoto) {
+      formData.append('removePhoto', 'true');
     }
 
+    const isUpdating = !!editingStudent;
+    const studentIdForUpdate = editingStudent ? String(editingStudent.id) : null;
 
-    const url = originalId ? `/api/user/profile/${originalId}` : '/api/user/profile';
-    const method = originalId ? 'PATCH' : 'POST';
+    // Determine URL and method (POST for new, PATCH for update)
+    // originalUsername is the student's unique username, used for updates if ID is not fixed
+    // If your API uses the numeric `id` for updates, you'd need to pass that from editingStudent.id
+    const studentToUpdate = students.find(s => s.username === originalUsername);
+    const url = isUpdating && studentIdForUpdate
+      ? `/api/user/profile/${studentIdForUpdate}` // For PATCH to update existing student
+      : '/api/user/profile';                     // For POST to create new student
+    const method = isUpdating ? 'PATCH' : 'POST';
 
-    try {
+ try {
       const response = await fetch(url, { method, body: formData });
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || `Failed to ${originalId ? 'update' : 'add'} student. ${result.details ? JSON.stringify(result.details) : ''}`);
+        const errorDetails = result.details ? ` Details: ${JSON.stringify(result.details, null, 2)}` : '';
+        throw new Error(result.error || `Failed to ${isUpdating ? 'update' : 'add'} student.${errorDetails}`);
       }
 
-      toast({ title: "Success", description: `Student ${originalId ? 'updated' : 'added'} successfully.` });
+      toast({ title: "Success", description: `Student ${isUpdating ? 'updated' : 'added'} successfully.` });
       setIsFormModalOpen(false);
-      fetchStudents(); // Re-fetch to get the latest list including the new/updated student
+      setEditingStudent(null); // Clear editing student state
+      fetchStudents(); // Re-fetch to get the latest list
     } catch (error: any) {
+      console.error(`Error ${isUpdating ? 'updating' : 'adding'} student:`, error);
       toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      // setIsLoading(false);
+    }
+  };
+
+  const toggleStudentSelectionForPrint = (studentId: string) => {
+    setSelectedStudentIdsForPrint(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(studentId)) {
+        newSet.delete(studentId);
+      } else {
+        newSet.add(studentId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAllFilteredForPrint = (isChecked: boolean) => {
+    if (isChecked) {
+      const ids = new Set(filteredStudents.map(s => String(s.id)));
+      setSelectedStudentIdsForPrint(ids);
+    } else {
+      setSelectedStudentIdsForPrint(new Set());
+    }
+  };
+
+  const handleBatchPrint = () => {
+    if (selectedStudentIdsForPrint.size === 0) {
+      toast({ title: "No students selected", description: "Please select students to print IDs.", variant: "default" });
+      return;
+    }
+    const studentsToPrintData: StudentIdData[] = students
+      .filter(s => selectedStudentIdsForPrint.has(String(s.id)))
+      .map(s => mapStudentToIdData(s));
+
+    if (studentsToPrintData.length === 0) {
+        toast({ title: "Error", description: "Could not find selected students data.", variant: "destructive" });
+        return;
+    }
+
+    try {
+        const queryParams = encodeURIComponent(JSON.stringify(studentsToPrintData));
+        const url = `/students/print-ids?students=${queryParams}`; // Adjusted print URL
+        if (url.length > 2000) {
+            toast({
+                title: "Too much data",
+                description: `Cannot print ${studentsToPrintData.length} IDs at once due to URL length limits. Please select fewer students. (Max ~20-30 depending on data size)`,
+                variant: "warning",
+                duration: 7000,
+            });
+            return;
+        }
+        window.open(url, '_blank');
+    } catch (e) {
+        toast({ title: "Error", description: "Error preparing IDs for printing.", variant: "destructive" });
+        console.error("Error stringifying/encoding for batch print:", e);
     }
   };
   
-  // Example Batches (you might want to generate this dynamically or fetch from somewhere)
-  const BATCH_YEARS = ["2020", "2021", "2022", "2023", "2024", "2025"];
+  const areAllFilteredSelected = filteredStudents.length > 0 && selectedStudentIdsForPrint.size === filteredStudents.length;
 
-
-  if (isLoading) {
+  if (isLoading && students.length === 0) { // Show full page loader only on initial load
     return (
-      <div className="flex justify-center items-center h-64">
-        <LoaderCircle className="animate-spin h-8 w-8 text-blue-500" />
-        <p className="ml-2">Loading students...</p>
+      <div className="flex flex-col justify-center items-center h-screen">
+        <LoaderCircle className="animate-spin h-12 w-12 text-blue-600 mb-4" />
+        <p className="text-lg text-gray-700">Loading students...</p>
       </div>
     );
   }
@@ -187,27 +261,29 @@ export default function StudentsPage() {
         showSearch
         searchTerm={searchTerm}
         onSearchChange={(term: string) => setSearchTerm(term)}
-        // onSearchSubmit={handleSearch} // Not strictly needed with dynamic filtering
-        placeholder="Search by name, ID, username, email..."
+        placeholder="Search by name, username, ID, email..."
       />
 
       <Card className="p-4 mb-6">
-        <div className="flex flex-wrap items-center gap-4">
-          {/* Updated to Filter by Batch */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:flex lg:flex-wrap items-center gap-4">
           <Select value={filterBatch} onValueChange={setFilterBatch}>
-            <SelectTrigger className="w-full sm:w-[180px]">
-              <SelectValue placeholder="Filter by Batch" />
+            <SelectTrigger className="w-full lg:w-[180px]">
+              <SelectValue placeholder="Filter by Batch/Year" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Batches</SelectItem>
-              {BATCH_YEARS.map(b => ( // Assuming BATCH_YEARS is defined
-                 <SelectItem key={b} value={b}>{b}</SelectItem>
+              <SelectItem value="all">All Batches/Years</SelectItem>
+              {YEARS.map(y => (
+                 <SelectItem key={y} value={String(y)}>{y}{['st', 'nd', 'rd'][y-1] || 'th'} Year</SelectItem>
               ))}
+              {/* Or use BATCH_YEARS if you have specific admission years */}
+              {/* {BATCH_YEARS.map(b => (
+                 <SelectItem key={b} value={b}>{b}</SelectItem>
+              ))} */}
             </SelectContent>
           </Select>
 
           <Select value={filterDepartment} onValueChange={setFilterDepartment}>
-            <SelectTrigger className="w-full sm:w-[220px]">
+            <SelectTrigger className="w-full lg:w-[220px]">
               <SelectValue placeholder="Filter by Department" />
             </SelectTrigger>
             <SelectContent>
@@ -218,46 +294,80 @@ export default function StudentsPage() {
             </SelectContent>
           </Select>
           
-          <Button onClick={handleOpenAddForm} className="w-full sm:w-auto sm:ml-auto">
-            <Icons.Add className="h-4 w-4 mr-2" />
-            Add Student
-          </Button>
+          <div className="flex items-center space-x-2 lg:ml-auto w-full lg:w-auto mt-4 lg:mt-0 col-span-full md:col-span-1">
+            <Button
+              onClick={handleBatchPrint}
+              variant="outline"
+              className="flex-1 lg:flex-none"
+              disabled={selectedStudentIdsForPrint.size === 0 || isLoading}
+            >
+              <Printer className="h-4 w-4 mr-2" />
+              Print ({selectedStudentIdsForPrint.size})
+            </Button>
+            <Button onClick={handleOpenAddForm} className="flex-1 lg:flex-none">
+              <Icons.Add className="h-4 w-4 mr-2" />
+              Add Student
+            </Button>
+          </div>
         </div>
+        
+        {filteredStudents.length > 0 && !isLoading && (
+          <div className="mt-4 flex items-center space-x-2 border-t pt-4">
+            <Checkbox
+              id="select-all-filtered"
+              checked={areAllFilteredSelected}
+              onCheckedChange={(checked) => handleSelectAllFilteredForPrint(checked as boolean)}
+              disabled={isLoading}
+            />
+            <label htmlFor="select-all-filtered" className="text-sm font-medium cursor-pointer">
+              Select all {filteredStudents.length} displayed students
+            </label>
+          </div>
+        )}
       </Card>
 
-      {filteredStudents.length > 0 ? (
-        <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filteredStudents.map(student => (
-            <StudentCard // This component needs to be updated to accept the new Student type
-              key={student.id}
-              student={student} 
-              onView={() => handleViewStudent(Number(student.id))}
-              onEdit={() => handleEditStudent(Number(student.id))}
-              onDelete={() => handleDeleteStudent(Number(student.id))} // Added onDelete to card
-            />
-          ))}
+      {isLoading && students.length > 0 && ( // Show smaller loader if students are already partially loaded
+        <div className="flex justify-center items-center py-10">
+          <LoaderCircle className="animate-spin h-8 w-8 text-blue-500" />
+          <p className="ml-2">Updating student list...</p>
         </div>
-      ) : (
+      )}
+
+      {!isLoading && filteredStudents.length === 0 && (
         <Card className="p-6 text-center text-muted-foreground">
           No students found matching your criteria. Try adjusting filters or add a new student.
         </Card>
       )}
 
-      {/* StudentProfileModal and StudentFormModal need significant updates to match new data structure and API */}
+      {!isLoading && filteredStudents.length > 0 && (
+        <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {filteredStudents.map(student => (
+            <StudentCard
+              key={String(student.id)} // Use string ID for key
+              student={student} 
+              onView={() => handleViewStudent(String(student.id))}
+              onEdit={() => handleEditStudent(String(student.id))}
+              onDelete={() => handleDeleteStudent(String(student.id))}
+              isSelected={() => selectedStudentIdsForPrint.has(String(student.id))}
+              onSelectToggle={(id, isChecked) => toggleStudentSelectionForPrint(String(id))}
+            />
+          ))}
+        </div>
+      )}
+
       <StudentProfileModal
         student={selectedStudent}
         isOpen={isProfileModalOpen}
         onOpenChange={setIsProfileModalOpen}
-        onEdit={() => selectedStudent && handleEditStudent(Number(selectedStudent.id))}
-        onDelete={() => selectedStudent && handleDeleteStudent(Number(selectedStudent.id))}
+        onEdit={(id) => { setIsProfileModalOpen(false); handleEditStudent(id);}}
+        onDelete={(id) => { setIsProfileModalOpen(false); handleDeleteStudent(id);}}
       />
 
       <StudentFormModal
-        student={editingStudent || undefined} // Convert null to undefined to match the expected type
+        student={editingStudent || undefined}
         isOpen={isFormModalOpen}
         onOpenChange={setIsFormModalOpen}
         onSubmit={handleStudentFormSubmit}
-        // Pass existing usernames/emails for client-side validation hints if desired
         existingUsernames={existingStudentUsernames}
       />
     </>

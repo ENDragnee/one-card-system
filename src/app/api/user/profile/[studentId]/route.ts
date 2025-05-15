@@ -1,4 +1,7 @@
 // app/api/students/[studentId]/route.ts
+// (Assuming this is the correct path, though the error mentions src/app/api/user/profile/[studentId]/route.ts.
+// The fix applies regardless of the exact path, as long as it's an App Router API route.)
+
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { hashPassword } from "@/lib/password-utils";
@@ -19,13 +22,13 @@ const updateStudentFormSchema = z.object({
   phone: z.string().optional().nullable(),
   year: z.coerce.number().min(1).max(YEARS[YEARS.length - 1] || 5).optional().nullable() as z.ZodType<Year | null | undefined>,
   department: z.enum(departments).optional().nullable(),
-  removePhoto: z.string().transform(val => val === 'true').optional().default('false'), // Comes as string from FormData
-  // photoFile is not in schema, handled separately from FormData
+  removePhoto: z.string().transform(val => val === 'true').optional().default('false'), // Default to string 'false'
 });
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { studentId: string } }
+  // 1. Modify type for params to be a Promise and rename destructured variable
+  { params: paramsPromise }: { params: Promise<{ studentId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -33,6 +36,10 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // 2. Await the paramsPromise to get the actual params object
+    const params = await paramsPromise;
+
+    // 3. Now use the resolved params object
     const studentIdInt = parseInt(params.studentId, 10);
     if (isNaN(studentIdInt)) {
       return NextResponse.json({ error: "Invalid student ID format" }, { status: 400 });
@@ -41,16 +48,13 @@ export async function PATCH(
     const formData = await req.formData();
     const rawData: Record<string, any> = {};
     
-    // Extract and preprocess data from FormData
     for (const [key, value] of formData.entries()) {
-      if (key === "photoFile") continue; // Handled separately
+      if (key === "photoFile") continue; 
 
       if (key === 'password' && value === '') {
-        // an empty password string means "no change", so we don't include it in rawData for Zod
-        // Zod schema will treat it as undefined if not present
         continue;
       } else if (typeof value === 'string' && value === '' && ['phone', 'gender', 'department', 'year'].includes(key)) {
-          rawData[key] = null; // Convert empty strings for optional fields to null
+          rawData[key] = null; 
       } else if (key === 'year' && typeof value === 'string' && value !== '') {
           const numValue = parseInt(value, 10);
           rawData[key] = isNaN(numValue) ? null : numValue;
@@ -62,7 +66,7 @@ export async function PATCH(
     const validationResult = updateStudentFormSchema.safeParse(rawData);
 
     if (!validationResult.success) {
-      console.error("Validation Errors:", validationResult.error.flatten().fieldErrors);
+      console.error("Validation Errors (PATCH):", validationResult.error.flatten().fieldErrors);
       return NextResponse.json(
         { error: "Invalid input", details: validationResult.error.flatten().fieldErrors },
         { status: 400 }
@@ -72,12 +76,10 @@ export async function PATCH(
     const validatedData = validationResult.data;
     const dataToUpdate: Record<string, any> = {};
 
-    // Map validated data to Prisma update object
     if (validatedData.username) dataToUpdate.username = validatedData.username;
     if (validatedData.email) dataToUpdate.email = validatedData.email;
     
     if (validatedData.firstName || validatedData.lastName) {
-        // Fetch existing student to correctly merge names if only one part is provided
         const currentStudentForName = await prisma.user.findUnique({
             where: { id: studentIdInt },
             select: { name: true }
@@ -97,37 +99,38 @@ export async function PATCH(
       }
       dataToUpdate.password = await hashPassword(validatedData.password);
     }
-    // If password is empty string or undefined, it's skipped (no change)
 
     if (validatedData.gender !== undefined) dataToUpdate.gender = validatedData.gender;
     if (validatedData.phone !== undefined) dataToUpdate.phone = validatedData.phone;
     if (validatedData.department !== undefined) dataToUpdate.department = validatedData.department;
-    if (validatedData.year !== undefined) dataToUpdate.batch = validatedData.year ? String(validatedData.year) : null; // Map year to batch (string)
+    if (validatedData.year !== undefined) dataToUpdate.batch = validatedData.year ? String(validatedData.year) : null;
 
     const existingStudent = await prisma.user.findUnique({ where: { id: studentIdInt }, select: { photo: true, role: true } });
     if (!existingStudent || existingStudent.role !== 'Student') {
       return NextResponse.json({ error: "Student not found" }, { status: 404 });
     }
 
-    // Handle photo update/removal
-    const photoFile = formData.get("photoFile") as File | null; // Key from frontend form
-    const removePhotoFlag = validatedData.removePhoto;
+    const photoFile = formData.get("photoFile") as File | null;
+    const removePhotoFlag = validatedData.removePhoto === true;
 
     if (removePhotoFlag) {
-      await deleteFile(existingStudent.photo);
+      if (existingStudent.photo) { // Ensure photo exists before trying to delete
+        await deleteFile(existingStudent.photo);
+      }
       dataToUpdate.photo = null;
     } else if (photoFile && photoFile.size > 0) {
       try {
-        await deleteFile(existingStudent.photo); // Delete old photo first
+        if (existingStudent.photo) { // Delete old photo if it exists
+           await deleteFile(existingStudent.photo);
+        }
         dataToUpdate.photo = await handleFileUpload(photoFile);
       } catch (e: any) {
-        console.error("Photo upload error:", e);
+        console.error("Photo upload error (PATCH):", e);
         return NextResponse.json({ error: e.message || "Photo upload failed" }, { status: 400 });
       }
     }
-    // If no new photoFile and no removePhotoFlag, existingStudent.photo remains unchanged unless explicitly set above.
 
-    if (Object.keys(dataToUpdate).length === 0) {
+    if (Object.keys(dataToUpdate).length === 0 && !photoFile && !removePhotoFlag) { 
         return NextResponse.json({ message: "No changes provided." }, { status: 200 });
     }
 
@@ -144,7 +147,7 @@ export async function PATCH(
     return NextResponse.json(updatedStudent);
   } catch (error: any) {
     console.error("Error updating student:", error);
-     if (error.code === 'P2002') { // Prisma unique constraint violation
+     if (error.code === 'P2002') {
         const target = error.meta?.target as string[] | undefined;
         if (target?.includes('username') && target?.includes('email')) {
             return NextResponse.json({ error: "Username and Email already exist for another user." }, { status: 409 });
@@ -164,7 +167,8 @@ export async function PATCH(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { studentId: string } }
+  // 1. Modify type for params to be a Promise and rename destructured variable
+  { params: paramsPromise }: { params: Promise<{ studentId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -172,6 +176,10 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // 2. Await the paramsPromise to get the actual params object
+    const params = await paramsPromise;
+    
+    // 3. Now use the resolved params object
     const studentIdInt = parseInt(params.studentId, 10);
     if (isNaN(studentIdInt)) {
       return NextResponse.json({ error: "Invalid student ID" }, { status: 400 });
@@ -184,9 +192,10 @@ export async function DELETE(
     if (!student || student.role !== 'Student') {
       return NextResponse.json({ error: "Student not found" }, { status: 404 });
     }
-
-    // Delete photo file if it exists
-    await deleteFile(student.photo);
+    
+    if (student.photo) { // Ensure photo exists before trying to delete
+        await deleteFile(student.photo);
+    }
 
     await prisma.user.delete({
       where: { id: studentIdInt },

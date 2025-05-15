@@ -71,7 +71,7 @@ export function LoginPage() {
           if (currentSession.user.role === Role.Student) {
             router.replace("/onboarding"); // Stay on /onboarding to see content
           } else if (currentSession.user.role === Role.Registrar) {
-            router.replace("/dashboard");
+            router.replace("/admin/dashboard");
           } else {
             router.replace("/"); // Fallback
           }

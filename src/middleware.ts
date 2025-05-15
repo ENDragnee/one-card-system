@@ -30,7 +30,7 @@ export async function middleware(request: NextRequest) {
         return NextResponse.next();
       } else if (userRole === Role.Registrar) {
         // Registrar on login page, redirect to their dashboard
-        return NextResponse.redirect(new URL('/dashboard', request.url));
+        return NextResponse.redirect(new URL('/admin/dashboard', request.url));
       }
       // Fallback for other authenticated roles on login page
       return NextResponse.redirect(new URL('/', request.url));
@@ -39,7 +39,7 @@ export async function middleware(request: NextRequest) {
     // 1b. Role-specific routing for Student
     if (userRole === Role.Student) {
       // Redirect student from /dashboard to their onboarding page
-      if (pathname === '/dashboard') {
+      if (pathname === '/admin/dashboard') {
         return NextResponse.redirect(new URL(LOGIN_PAGE_PATH, request.url));
       }
       
