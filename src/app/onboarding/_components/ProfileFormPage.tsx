@@ -19,17 +19,17 @@ import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { OnboardingCard } from "@/components/OnboardingCard";
-import { useToast } from "@/hooks/use-toast"; // Or "@/components/ui/use-toast"
+import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
 import { signOut } from "next-auth/react";
-import { departments } from "@/types"; // Your departments array
+import { departments, yearMap, GENDERS as FormGenders } from "@/types"; // Using FormGenders to avoid conflict
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"; // Import Select components
+} from "@/components/ui/select";
 
 const profileFormSchema = z.object({
   picture: z.any().optional(),
@@ -38,11 +38,15 @@ const profileFormSchema = z.object({
   lastName: z.string().min(1, "Last name is required."),
   phone: z.string().optional().or(z.literal("")),
   email: z.string().email("Invalid email address.").min(1, "Email is required."),
-  gender: z.enum(["male", "female", "other"], { // Added "other" to match previous API and common practice
+  gender: z.enum(["male", "female", "other"], { // Explicitly allow "other"
     errorMap: () => ({ message: "Please select a gender." }),
   }),
-  department: z.enum(departments, { // Changed to singular 'department' to match Prisma
+  department: z.enum(departments, {
     errorMap: () => ({ message: "Please select a department." }),
+  }),
+  // Year will be the string key of yearMap, e.g., "1", "2"
+  year: z.string().refine(val => Object.keys(yearMap).includes(val), {
+    message: "Please select a valid year.",
   }),
 });
 
@@ -50,7 +54,8 @@ type ProfileFormValues = z.infer<typeof profileFormSchema>;
 
 interface ProfileFormPageProps {
   onProfileSaveSuccess: () => void;
-  initialData?: Partial<ProfileFormValues & { name?: string | null, photo?: string | null, department?: typeof departments[number] | null }>;
+  // Assuming initialData.year, if provided, is the string key like "1", "2"
+  initialData?: Partial<ProfileFormValues & { name?: string | null, photo?: string | null }>;
 }
 
 export function ProfileFormPage({ onProfileSaveSuccess, initialData }: ProfileFormPageProps) {
@@ -60,15 +65,19 @@ export function ProfileFormPage({ onProfileSaveSuccess, initialData }: ProfileFo
   const { toast } = useToast();
   const { data: session } = useSession();
 
+  // Ensure year defaults to a string key from yearMap
+  const firstYearKey = Object.keys(yearMap)[0] || "1";
+
   const defaultValues: ProfileFormValues = {
     firstName: initialData?.name?.split(' ')[0] || "",
     lastName: initialData?.name?.split(' ').slice(1).join(' ') || "",
     phone: initialData?.phone || "",
     email: initialData?.email || "",
-    gender: (initialData?.gender as "male" | "female" | "other") || "male",
+    gender: initialData?.gender || (FormGenders[0]),
     picture: undefined,
     removePicture: false,
-    department: initialData?.department || departments[0], // Default to first department or provided
+    department: initialData?.department || departments[0],
+    year: initialData?.year || firstYearKey, // e.g., "1"
   };
 
   const form = useForm<ProfileFormValues>({
@@ -83,13 +92,14 @@ export function ProfileFormPage({ onProfileSaveSuccess, initialData }: ProfileFo
         phone: initialData?.phone || "",
         email: initialData?.email || "",
         gender: (initialData?.gender as "male" | "female" | "other") || "male",
-        picture: undefined, // Picture file is not part of initial data values for form reset
+        picture: undefined,
         removePicture: false,
         department: initialData?.department || departments[0],
+        year: initialData?.year || firstYearKey,
     };
     form.reset(effectiveInitialData);
     setPreviewUrl(initialData?.photo || null);
-  }, [initialData, form.reset]);
+  }, [initialData, form, firstYearKey]); // Added form and firstYearKey to dependency array
 
 
   const handlePictureChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -114,12 +124,14 @@ export function ProfileFormPage({ onProfileSaveSuccess, initialData }: ProfileFo
       if(fileInputRef.current) fileInputRef.current.value = "";
       setPreviewUrl(null);
     } else {
+      // If unchecking remove, and there was an initial photo, restore preview
       if (initialData?.photo) {
         setPreviewUrl(initialData.photo);
       }
+      // If a file was selected before hitting remove, that selection is lost from input.
+      // User would need to re-select if they uncheck "remove" and want the new file.
     }
   };
-
 
   async function onSubmit(data: ProfileFormValues) {
     setIsSubmitting(true);
@@ -129,7 +141,8 @@ export function ProfileFormPage({ onProfileSaveSuccess, initialData }: ProfileFo
     formData.append("lastName", data.lastName);
     formData.append("email", data.email);
     formData.append("gender", data.gender);
-    formData.append("department", data.department); // Add department
+    formData.append("department", data.department);
+    formData.append("year", data.year); // This is now "1", "2", etc.
     if (data.phone) {
       formData.append("phone", data.phone);
     } else {
@@ -169,15 +182,15 @@ export function ProfileFormPage({ onProfileSaveSuccess, initialData }: ProfileFo
           description: "Your profile has been updated.",
         });
 
-        const updatedUser = result.user;
-        // Reset form with new data from server to be in sync
+        const updatedUser = result.user; // API returns user with { ..., batch: "1", ... }
         form.reset({
             firstName: updatedUser.name?.split(' ')[0] || "",
             lastName: updatedUser.name?.split(' ').slice(1).join(' ') || "",
             email: updatedUser.email,
             phone: updatedUser.phone || "",
-            gender: updatedUser.gender,
-            department: updatedUser.department || departments[0], // Reset department
+            gender: (updatedUser.gender as "male" | "female" | "other") || "male",
+            department: updatedUser.department || departments[0],
+            year: updatedUser.batch || firstYearKey, // Use batch from API response, which is "1", "2", etc.
             picture: undefined,
             removePicture: false,
         });
@@ -219,19 +232,20 @@ export function ProfileFormPage({ onProfileSaveSuccess, initialData }: ProfileFo
       description="This is your student onboarding area. Complete the steps below to get started."
     >
       <div className="flex flex-col justify-center mb-4">
-        <Button variant="outline" className="mb-4 max-w-md mx-auto bg-black text-white hover:bg-red-500 hover:text-white" onClick={() => signOut()}>Sign out</Button>
+        <Button variant="outline" className="mb-4 max-w-md mx-auto bg-black text-white hover:bg-red-500 hover:text-white" onClick={() => signOut({ callbackUrl: '/' })}>Sign out</Button>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            {/* ... (picture upload and other fields remain the same) ... */}
             <div className="flex flex-col items-center space-y-3">
               <FormLabel>Profile Picture</FormLabel>
               <Avatar className="w-24 h-24 border">
-                <AvatarImage src={previewUrl || undefined} alt="Profile Preview" />
+                <AvatarImage src={previewUrl || undefined} alt="Profile Preview" className="cover" />
                 <AvatarFallback>{getAvatarFallback()}</AvatarFallback>
               </Avatar>
               <Input
                 type="file"
                 id="picture-upload"
-                {...form.register("picture")}
+                // {...form.register("picture")} // react-hook-form handles this if needed, but manual setValue is fine
                 ref={fileInputRef}
                 className="hidden"
                 accept="image/jpeg,image/png,image/gif,image/webp"
@@ -274,6 +288,7 @@ export function ProfileFormPage({ onProfileSaveSuccess, initialData }: ProfileFo
                 />
               )}
             </div>
+
             <div className="max-w-md mx-auto space-y-4">
               <FormField
                 control={form.control}
@@ -327,7 +342,6 @@ export function ProfileFormPage({ onProfileSaveSuccess, initialData }: ProfileFo
                   </FormItem>
                 )}
               />
-              {/* Department Dropdown */}
               <FormField
                 control={form.control}
                 name="department"
@@ -352,6 +366,36 @@ export function ProfileFormPage({ onProfileSaveSuccess, initialData }: ProfileFo
                   </FormItem>
                 )}
               />
+              {/* Year (Batch) Dropdown - value will be "1", "2", etc. */}
+              <FormField
+                control={form.control}
+                name="year"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Year</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value} // field.value is already "1", "2", etc.
+                      disabled={isSubmitting}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                           {/* Display the corresponding label */}
+                          <SelectValue placeholder={"Select your Year"} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {Object.entries(yearMap).map(([key, label]) => (
+                          <SelectItem key={key} value={key}> {/* value is "1", "2", etc. */}
+                            {label} {/* display is "1st Year", "2nd Year", etc. */}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={form.control}
                 name="gender"
@@ -364,24 +408,14 @@ export function ProfileFormPage({ onProfileSaveSuccess, initialData }: ProfileFo
                         value={field.value}
                         className="flex flex-col justify-around space-y-1 md:flex-row md:space-y-0 md:space-x-4"
                       >
-                        <FormItem className="flex items-center space-x-3 space-y-0">
-                          <FormControl>
-                            <RadioGroupItem value="male" disabled={isSubmitting}/>
-                          </FormControl>
-                          <FormLabel className="font-normal">Male</FormLabel>
-                        </FormItem>
-                        <FormItem className="flex items-center space-x-3 space-y-0">
-                          <FormControl>
-                            <RadioGroupItem value="female" disabled={isSubmitting}/>
-                          </FormControl>
-                          <FormLabel className="font-normal">Female</FormLabel>
-                        </FormItem>
-                        <FormItem className="flex items-center space-x-3 space-y-0">
-                          <FormControl>
-                            <RadioGroupItem value="other" disabled={isSubmitting}/>
-                          </FormControl>
-                          <FormLabel className="font-normal">Other</FormLabel>
-                        </FormItem>
+                        {(FormGenders as readonly ("male" | "female" | "other")[]).map((genderValue) => (
+                           <FormItem key={genderValue} className="flex items-center space-x-3 space-y-0">
+                           <FormControl>
+                             <RadioGroupItem value={genderValue} disabled={isSubmitting}/>
+                           </FormControl>
+                           <FormLabel className="font-normal capitalize">{genderValue}</FormLabel>
+                         </FormItem>
+                        ))}
                       </RadioGroup>
                     </FormControl>
                     <FormMessage />

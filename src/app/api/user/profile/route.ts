@@ -2,17 +2,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import * as z from "zod";
-import path from "path"; // Not strictly needed here if handleFileUpload manages paths
-import { writeFile, mkdir, stat, unlink } from "fs/promises"; // Not strictly needed if using handleFileUpload
-import { v4 as uuidv4 } from "uuid"; // Potentially used in handleFileUpload
-import { Role } from "@prisma/client"; // Keep if you use it
+import { Role } from "@prisma/client";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
-import { generateBarcode } from "@/lib/barcodeGenerator";
-import { hashPassword } from "@/lib/password-utils";
-import { handleFileUpload, deleteFile } from "@/lib/fileUpload"; // Ensure this path is correct
-import { departments, GENDERS, YEARS as YEAR_LEVELS, Year } from "@/types"; // Renamed YEARS to YEAR_LEVELS for clarity
-import { now } from "next-auth/client/_utils";
+// import { generateBarcode } from "@/lib/barcodeGenerator"; // Not used in PATCH for own profile
+import { hashPassword } from "@/lib/password-utils"; // Not used in PATCH for own profile
+import { handleFileUpload, deleteFile } from "@/lib/fileUpload";
+import { departments, GENDERS, yearMap } from "@/types"; // Removed YEAR_LEVELS, Year
 
 // Zod schema for updating the current user's profile (PATCH)
 const updateUserProfileSchema = z.object({
@@ -20,13 +16,22 @@ const updateUserProfileSchema = z.object({
   lastName: z.string().min(1, "Last name is required."),
   phone: z.string().optional().or(z.literal("")).transform(val => val === "" ? null : val),
   email: z.string().email("Invalid email address.").min(1, "Email is required."),
-  gender: z.enum(GENDERS, { // Use GENDERS from types if it's ["male", "female", "other"]
+  gender: z.enum(GENDERS, { // Use GENDERS from types
     errorMap: () => ({ message: "Please select a valid gender." }),
   }),
-  department: z.enum(departments).optional().nullable(), // department is optional for own profile update
+  department: z.enum(departments).optional().nullable(),
+  // Year from form is a string key of yearMap ("1", "2", etc.)
+  // It will be stored in the 'batch' field in the database.
+  year: z.string()
+    .refine(val => Object.keys(yearMap).includes(val), {
+        message: "Invalid year selected."
+    })
+    .optional() // Year is optional for profile update
+    .nullable()
+    .transform(val => (val === "" || val === null) ? null : val), // Ensure empty string becomes null
 });
 
-// Zod schema for creating a new student (POST by admin)
+// Zod schema for creating a new student (POST by admin) - slightly adjusted for clarity
 const createStudentSchema = z.object({
   firstName: z.string().min(1, "First name is required."),
   lastName: z.string().min(1, "Last name is required."),
@@ -34,14 +39,16 @@ const createStudentSchema = z.object({
   email: z.string().email("Invalid email address."),
   password: z.string().min(6, "Password must be at least 6 characters."),
   phone: z.string().optional().or(z.literal("")).transform(val => val === "" ? null : val),
-  gender: z.enum(GENDERS, {
-    errorMap: () => ({ message: "Please select a valid gender." }),
-  }).optional().nullable(),
+  gender: z.enum(GENDERS).optional().nullable(),
   department: z.enum(departments).optional().nullable(),
-  // 'year' in the frontend form corresponds to 'batch' in the DB.
-  // The frontend sends 'year' as a number (e.g., 1, 2, 3), which needs to be stored as a string in 'batch'.
-  year: z.string().transform(val => val === "" ? null : val).pipe(z.coerce.number().min(1).max(YEAR_LEVELS[YEAR_LEVELS.length - 1] || 5).optional().nullable()) as unknown as z.ZodType<Year | null | undefined>,
-  // photoFile will be handled separately from formData
+  // Year from form is a string key like "1", "2", which will be stored in 'batch'
+  year: z.string()
+    .refine(val => Object.keys(yearMap).includes(val), {
+        message: "Invalid year selected for new student."
+    })
+    .optional()
+    .nullable()
+    .transform(val => (val === "" || val === null) ? null : val),
 });
 
 
@@ -50,7 +57,11 @@ async function getCurrentUser(req: NextRequest): Promise<{ id: number; role: Rol
   if (session?.user?.id && session?.user?.role) {
     const userId = typeof session.user.id === 'string' ? parseInt(session.user.id, 10) : session.user.id;
     if (!isNaN(userId)) {
-      return { id: userId, role: session.user.role as Role };
+      // Ensure Role type is correctly cast if it comes as string from session
+      const userRole = session.user.role as Role;
+      if (Object.values(Role).includes(userRole)) {
+          return { id: userId, role: userRole };
+      }
     }
   }
   return null;
@@ -72,8 +83,9 @@ export async function PATCH(req: NextRequest) {
       lastName: formData.get("lastName") as string | null,
       phone: formData.get("phone") as string | null,
       email: formData.get("email") as string | null,
-      gender: formData.get("gender") as "male" | "female" | "other" | null, // Adjust if GENDERS from types is different
+      gender: formData.get("gender") as typeof GENDERS[number] | null,
       department: formData.get("department") as typeof departments[number] | null,
+      year: formData.get("year") as string | null, // This will be "1", "2", etc., or null
     };
 
     const validationResult = updateUserProfileSchema.safeParse(dataFromForm);
@@ -85,29 +97,31 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    const { firstName, lastName, phone, email, gender, department } = validationResult.data;
+    // 'year' from validationResult.data is the string "1", "2", etc., or null
+    const { firstName, lastName, phone, email, gender, department, year } = validationResult.data;
 
     const dataToUpdate: {
       name: string;
       email: string;
       phone?: string | null;
-      gender?: typeof GENDERS[number] | null; // Use GENDERS type
+      gender?: typeof GENDERS[number] | null;
       photo?: string | null;
       department?: typeof departments[number] | null;
+      batch?: string | null; // Changed from 'year' to 'batch'
       completed: boolean;
-      completedAt?: Date | null; // Not used in this context
-      // barcode_id for own profile update? Typically generated once.
+      completedAt?: Date; // Changed to Date, consistent with Prisma model
     } = {
       name: `${firstName} ${lastName}`.trim(),
       email,
       gender: gender || null,
       phone,
       department: department || null,
+      batch: year, // 'year' is already the string key "1", "2", etc., or null
       completed: true,
       completedAt: new Date(),
     };
 
-    const pictureFile = formData.get("picture") as File | null; // Assuming 'picture' for own profile
+    const pictureFile = formData.get("picture") as File | null;
     const removePictureFlag = formData.get("removePicture") === "true";
 
     const userRecord = await prisma.user.findUnique({ where: { id: userId }, select: { photo: true } });
@@ -119,7 +133,7 @@ export async function PATCH(req: NextRequest) {
     } else if (pictureFile && pictureFile.size > 0) {
       try {
         if (oldPhotoPath) await deleteFile(oldPhotoPath);
-        dataToUpdate.photo = await handleFileUpload(pictureFile); // Generic upload dir
+        dataToUpdate.photo = await handleFileUpload(pictureFile);
       } catch (e: any) {
         return NextResponse.json({ error: e.message || "Photo upload failed" }, { status: 400 });
       }
@@ -128,12 +142,13 @@ export async function PATCH(req: NextRequest) {
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: dataToUpdate,
-      select: { id: true, name: true, username: true, email: true, gender: true, phone: true, photo: true, department: true, role: true, createdAt: true, batch: true, barcode_id: true },
+      // Ensure 'batch' is selected to be returned
+      select: { id: true, name: true, username: true, email: true, gender: true, phone: true, photo: true, department: true, role: true, createdAt: true, batch: true, barcode_id: true, completed: true, completedAt: true },
     });
 
     return NextResponse.json({
       message: "Profile updated successfully",
-      user: updatedUser,
+      user: updatedUser, // updatedUser will have { ..., batch: "1", ... }
     }, { status: 200 });
 
   } catch (error: any) {
@@ -148,11 +163,20 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
+// GET and POST handlers remain, ensure createStudentSchema's year handling is also consistent
+// if you create students through a similar form structure.
+// The provided POST handler already expects 'year' as a string and stores it in 'batch'.
+// The updated createStudentSchema above makes it consistent with PATCH.
+// ... (Rest of the GET and POST handlers from your provided code)
+// Ensure `generateBarcode` is imported if used in POST
+import { generateBarcode } from "@/lib/barcodeGenerator";
+
 // GET handler to fetch all students (Registrar only)
 export async function GET(req: NextRequest) {
   try {
     const currentUser = await getCurrentUser(req);
-    if (!currentUser || currentUser.role !== Role.Registrar) { // Use Role enum from Prisma
+    // Ensure Role.Registrar is correctly compared
+    if (!currentUser || currentUser.role !== Role.Registrar) { 
       return NextResponse.json({ error: "Unauthorized to view students" }, { status: 403 });
     }
 
@@ -166,10 +190,14 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
     
-    // Map 'batch' (string from DB) to 'year' (number for frontend consistency)
+    // Map 'batch' (string from DB) to 'year' (number for frontend consistency in some places)
+    // For ProfileFormPage, we'd prefer 'batch' as string if it directly populates initialData.year
     const processedStudents = students.map(s => ({
         ...s,
-        year: s.batch ? parseInt(s.batch, 10) : null
+        // For general display or other forms, 'year' as number might be useful
+        // For this specific ProfileFormPage, if initialData comes from such a source,
+        // ensure 'year' is converted back to string (key of yearMap)
+        numericYear: s.batch ? parseInt(s.batch, 10) : null 
     }));
 
     return NextResponse.json(processedStudents);
@@ -191,20 +219,16 @@ export async function POST(req: NextRequest) {
     const rawData: Record<string, any> = {};
     
     for (const [key, value] of formData.entries()) {
-      if (key === "photoFile") continue; // photoFile is from the student form
+      if (key === "photoFile") continue; 
 
+      // Convert empty strings for optional fields to null for validation
       if (typeof value === 'string' && value === '' && ['phone', 'gender', 'department', 'year'].includes(key)) {
-          rawData[key] = null;
+          rawData[key] = null; 
       } else {
-          rawData[key] = value; // 'year' will be string here, Zod will coerce
+          rawData[key] = value; // 'year' will be string "1", "2" etc.
       }
     }
-    // Add default for removePhoto if not present, though not used in createStudentSchema
-    if (!rawData.hasOwnProperty('removePhoto')) {
-        rawData.removePhoto = 'false';
-    }
-
-
+    
     const validationResult = createStudentSchema.safeParse(rawData);
 
     if (!validationResult.success) {
@@ -215,9 +239,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // 'year' from validationResult.data is the string "1", "2", etc., or null
     const { firstName, lastName, username, email, password, gender, phone, year, department } = validationResult.data;
 
-    // Check for existing user by username or email (Prisma handles this with unique constraints too)
     const existingUser = await prisma.user.findFirst({
         where: { OR: [{email}, {username}]}
     });
@@ -226,20 +250,18 @@ export async function POST(req: NextRequest) {
         if (existingUser.username === username) return NextResponse.json({ error: "Username already in use" }, { status: 409 });
     }
 
-
     const hashedPassword = await hashPassword(password);
-    const photoFileFromForm = formData.get("photoFile") as File | null; // Key used in StudentFormModal
+    const photoFileFromForm = formData.get("photoFile") as File | null;
     let photoPath: string | null = null;
 
     if (photoFileFromForm && photoFileFromForm.size > 0) {
       try {
-        // Use the generic handleFileUpload, which should save to a general user photo dir or student-specific if customized
         photoPath = await handleFileUpload(photoFileFromForm);
       } catch (e: any) {
         return NextResponse.json({ error: e.message || "Photo upload failed for new student" }, { status: 400 });
       }
     }
-    
+    const barcodeValue = generateBarcode(); 
     const newStudentData: any = {
       name: `${firstName} ${lastName}`.trim(),
       username,
@@ -249,13 +271,15 @@ export async function POST(req: NextRequest) {
       phone: phone || null,
       photo: photoPath,
       department: department || null,
-      role: Role.Student, // Explicitly set role using Prisma enum
-      barcode_id: generateBarcode(),
+      role: Role.Student,
+      barcode_id: barcodeValue,
+      completed: false, // New students might not be 'completed' by default
+      batch: year, // 'year' is already string "1", "2" or null
     };
-    if (year !== null && year !== undefined) {
-        newStudentData.batch = String(year); // Store 'year' from form as 'batch' (string) in DB
-    } else {
-        newStudentData.batch = null;
+    // If 'completed' status depends on 'year' or other fields, adjust logic here
+    if (year && department && gender) { // Example: if these are filled, mark as completed
+        // newStudentData.completed = true;
+        // newStudentData.completedAt = new Date();
     }
     
     const newStudent = await prisma.user.create({
@@ -263,17 +287,12 @@ export async function POST(req: NextRequest) {
       select: {
         id: true, name: true, username: true, email: true, gender: true,
         phone: true, photo: true, barcode_id: true, batch: true,
-        department: true, role: true, createdAt: true,
+        department: true, role: true, createdAt: true, completed: true,
+        completedAt: true,
       },
     });
-     // Map 'batch' back to 'year' for frontend consistency if Student type expects 'year'
-     const responseStudent = {
-        ...newStudent,
-        year: newStudent.batch ? parseInt(newStudent.batch, 10) : null
-    };
 
-
-    return NextResponse.json(responseStudent, { status: 201 });
+    return NextResponse.json(newStudent, { status: 201 }); // newStudent has 'batch' field
 
   } catch (error: any) {
     console.error("Error creating student (POST):", error);

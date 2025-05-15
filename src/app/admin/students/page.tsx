@@ -1,4 +1,4 @@
-// app/admin/students/page.tsx
+// File: app/student/page.tsx
 "use client";
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { PageHeader } from "@/components/layout/page-header";
@@ -13,18 +13,16 @@ import {
 import { Card } from "@/components/ui/card";
 import { Icons } from "@/components/icons";
 import { StudentCard } from "@/components/student/student-card";
-import { StudentProfileModal, mapStudentToIdData } from "@/components/student/student-profile-modal";
+import { StudentProfileModal } from "@/components/student/student-profile-modal"; // mapStudentToIdData removed
 import { StudentFormModal, StudentFormData } from "@/components/student/student-form-modal";
-import { Student, departments, YEARS, StudentIdData } from "@/types"; // Ensure these are correctly defined
+import { Student, departments, YEARS } from "@/types"; // StudentIdData removed if not used elsewhere
 import { useToast } from "@/hooks/use-toast";
 import { LoaderCircle, Printer } from 'lucide-react';
 import { Checkbox } from "@/components/ui/checkbox";
 
-// Define BATCH_YEARS (example, adjust as needed)
-// This should ideally come from a shared config or be generated dynamically
-const CURRENT_YEAR = new Date().getFullYear();
-const BATCH_YEARS: string[] = Array.from({ length: 7 }, (_, i) => (CURRENT_YEAR - 3 + i).toString());
-
+// BATCH_YEARS can remain if used for filtering, otherwise not directly relevant to this change
+// const CURRENT_YEAR = new Date().getFullYear();
+// const BATCH_YEARS: string[] = Array.from({ length: 7 }, (_, i) => (CURRENT_YEAR - 3 + i).toString());
 
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
@@ -48,22 +46,19 @@ export default function StudentsPage() {
   const fetchStudents = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Ensure this API endpoint returns an array of Student objects
-      // The Student type should have id (number or string), name (string), username (string), email (string)
-      // and other fields like photo, department, batch, gender etc.
-      const response = await fetch("/api/user/profile"); // Changed API endpoint
+      const response = await fetch("/api/user/profile"); 
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || "Failed to fetch students");
       }
       const data: Student[] = await response.json();
       setStudents(data);
-      setFilteredStudents(data); // Initialize filtered students
+      // setFilteredStudents(data); // Filter effect will handle this
     } catch (error: any) {
       console.error(error);
       toast({ title: "Error", description: error.message || "Could not load students.", variant: "destructive" });
       setStudents([]);
-      setFilteredStudents([]);
+      // setFilteredStudents([]);
     } finally {
       setIsLoading(false);
     }
@@ -77,7 +72,6 @@ export default function StudentsPage() {
     let currentStudents = [...students];
 
     if (filterBatch !== "all") {
-      // Assuming Student type has 'batch' as a string like "2023" or 'year' as a number
       currentStudents = currentStudents.filter(s => String(s.batch) === filterBatch || String(s.year) === filterBatch);
     }
     if (filterDepartment !== "all") {
@@ -86,7 +80,7 @@ export default function StudentsPage() {
     if (searchTerm) {
       const lowerSearchTerm = searchTerm.toLowerCase();
       currentStudents = currentStudents.filter(s =>
-        s.name?.toLowerCase().includes(lowerSearchTerm) || // Assuming 'name' is full name
+        s.name?.toLowerCase().includes(lowerSearchTerm) ||
         s.username.toLowerCase().includes(lowerSearchTerm) ||
         String(s.id).toLowerCase().includes(lowerSearchTerm) ||
         s.email.toLowerCase().includes(lowerSearchTerm)
@@ -95,7 +89,8 @@ export default function StudentsPage() {
     setFilteredStudents(currentStudents);
   }, [students, searchTerm, filterBatch, filterDepartment]);
 
-  const handleViewStudent = (studentId: string) => { // Changed to string if ID is string
+
+  const handleViewStudent = (studentId: string) => {
     const student = students.find(s => String(s.id) === studentId);
     if (student) {
       setSelectedStudent(student);
@@ -108,7 +103,7 @@ export default function StudentsPage() {
     setIsFormModalOpen(true);
   };
 
-  const handleEditStudent = (studentId: string) => { // Changed to string
+  const handleEditStudent = (studentId: string) => {
     const student = students.find(s => String(s.id) === studentId);
     if (student) {
       setEditingStudent(student);
@@ -116,17 +111,16 @@ export default function StudentsPage() {
     }
   };
 
-  const handleDeleteStudent = async (studentId: string) => { // Changed to string
+  const handleDeleteStudent = async (studentId: string) => {
     if (window.confirm(`Are you sure you want to delete student ID ${studentId}? This action cannot be undone.`)) {
       try {
-        // Ensure this API endpoint supports DELETE by student ID (which might be a number or string)
-        const response = await fetch(`/api/students/${studentId}`, { method: 'DELETE' });
+        const response = await fetch(`/api/user/profile/${studentId}`, { method: 'DELETE' });
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(errorData.error || "Failed to delete student");
         }
         toast({ title: "Success", description: `Student ID ${studentId} deleted.` });
-        fetchStudents(); // Re-fetch to update the list
+        fetchStudents(); 
         setIsProfileModalOpen(false);
         setSelectedStudent(null);
       } catch (error: any) {
@@ -136,19 +130,17 @@ export default function StudentsPage() {
   };
 
   const handleStudentFormSubmit = async (data: StudentFormData, originalUsername?: string) => {
-    setIsLoading(true); // Optional: set loading state for form submission
+    // setIsLoading(true); // Already handled by fetchStudents implicitly
     const formData = new FormData();
 
-    // Append all non-file fields from data
     (Object.keys(data) as Array<keyof StudentFormData>).forEach(key => {
-      if (key === 'photoFile') return; // Skip file, handle separately
+      if (key === 'photoFile') return; 
       const value = data[key];
-      if (value !== undefined && value !== null) { // Send empty strings if they are intentional
+      if (value !== undefined && value !== null) {
           formData.append(key, String(value));
       }
     });
 
-    // Handle file upload
     if (data.photoFile instanceof File) {
       formData.append('photoFile', data.photoFile);
     }
@@ -158,17 +150,13 @@ export default function StudentsPage() {
 
     const isUpdating = !!editingStudent;
     const studentIdForUpdate = editingStudent ? String(editingStudent.id) : null;
-
-    // Determine URL and method (POST for new, PATCH for update)
-    // originalUsername is the student's unique username, used for updates if ID is not fixed
-    // If your API uses the numeric `id` for updates, you'd need to pass that from editingStudent.id
-    const studentToUpdate = students.find(s => s.username === originalUsername);
+    
     const url = isUpdating && studentIdForUpdate
-      ? `/api/user/profile/${studentIdForUpdate}` // For PATCH to update existing student
-      : '/api/user/profile';                     // For POST to create new student
+      ? `/api/user/profile/${studentIdForUpdate}`
+      : '/api/user/profile';                     
     const method = isUpdating ? 'PATCH' : 'POST';
 
- try {
+    try {
       const response = await fetch(url, { method, body: formData });
       const result = await response.json();
 
@@ -179,13 +167,11 @@ export default function StudentsPage() {
 
       toast({ title: "Success", description: `Student ${isUpdating ? 'updated' : 'added'} successfully.` });
       setIsFormModalOpen(false);
-      setEditingStudent(null); // Clear editing student state
-      fetchStudents(); // Re-fetch to get the latest list
+      setEditingStudent(null); 
+      fetchStudents(); 
     } catch (error: any) {
       console.error(`Error ${isUpdating ? 'updating' : 'adding'} student:`, error);
       toast({ title: "Error", description: error.message, variant: "destructive" });
-    } finally {
-      // setIsLoading(false);
     }
   };
 
@@ -200,6 +186,13 @@ export default function StudentsPage() {
       return newSet;
     });
   };
+  
+  // The onSelectToggle prop for StudentCard expects (studentId: string, isChecked: boolean)
+  // Our toggleStudentSelectionForPrint only needs studentId.
+  const handleCardSelectToggle = (studentId: string, _isChecked: boolean) => {
+    toggleStudentSelectionForPrint(studentId);
+  };
+
 
   const handleSelectAllFilteredForPrint = (isChecked: boolean) => {
     if (isChecked) {
@@ -215,37 +208,18 @@ export default function StudentsPage() {
       toast({ title: "No students selected", description: "Please select students to print IDs.", variant: "default" });
       return;
     }
-    const studentsToPrintData: StudentIdData[] = students
-      .filter(s => selectedStudentIdsForPrint.has(String(s.id)))
-      .map(s => mapStudentToIdData(s));
-
-    if (studentsToPrintData.length === 0) {
-        toast({ title: "Error", description: "Could not find selected students data.", variant: "destructive" });
-        return;
-    }
-
-    try {
-        const queryParams = encodeURIComponent(JSON.stringify(studentsToPrintData));
-        const url = `/students/print-ids?students=${queryParams}`; // Adjusted print URL
-        if (url.length > 2000) {
-            toast({
-                title: "Too much data",
-                description: `Cannot print ${studentsToPrintData.length} IDs at once due to URL length limits. Please select fewer students. (Max ~20-30 depending on data size)`,
-                variant: "destructive",
-                duration: 7000,
-            });
-            return;
-        }
-        window.open(url, '_blank');
-    } catch (e) {
-        toast({ title: "Error", description: "Error preparing IDs for printing.", variant: "destructive" });
-        console.error("Error stringifying/encoding for batch print:", e);
-    }
+    const idsArray = Array.from(selectedStudentIdsForPrint);
+    const idsQueryParam = idsArray.join(',');
+    // No need for long URL checks or JSON stringification of full objects
+    const url = `/students/print-ids?ids=${idsQueryParam}`;
+    window.open(url, '_blank');
   };
   
-  const areAllFilteredSelected = filteredStudents.length > 0 && selectedStudentIdsForPrint.size === filteredStudents.length;
+  const areAllFilteredSelected = filteredStudents.length > 0 && selectedStudentIdsForPrint.size === filteredStudents.length &&
+                                 filteredStudents.every(s => selectedStudentIdsForPrint.has(String(s.id)));
 
-  if (isLoading && students.length === 0) { // Show full page loader only on initial load
+
+  if (isLoading && students.length === 0) {
     return (
       <div className="flex flex-col justify-center items-center h-screen">
         <LoaderCircle className="animate-spin h-12 w-12 text-blue-600 mb-4" />
@@ -273,12 +247,8 @@ export default function StudentsPage() {
             <SelectContent>
               <SelectItem value="all">All Batches/Years</SelectItem>
               {YEARS.map(y => (
-                 <SelectItem key={y} value={String(y)}>{y}{['st', 'nd', 'rd'][y-1] || 'th'} Year</SelectItem>
+                 <SelectItem key={y} value={String(y)}>{y}{['st', 'nd', 'rd'][(y-1)%10] || 'th'} Year</SelectItem>
               ))}
-              {/* Or use BATCH_YEARS if you have specific admission years */}
-              {/* {BATCH_YEARS.map(b => (
-                 <SelectItem key={b} value={b}>{b}</SelectItem>
-              ))} */}
             </SelectContent>
           </Select>
 
@@ -326,7 +296,7 @@ export default function StudentsPage() {
         )}
       </Card>
 
-      {isLoading && students.length > 0 && ( // Show smaller loader if students are already partially loaded
+      {isLoading && students.length > 0 && (
         <div className="flex justify-center items-center py-10">
           <LoaderCircle className="animate-spin h-8 w-8 text-blue-500" />
           <p className="ml-2">Updating student list...</p>
@@ -343,13 +313,13 @@ export default function StudentsPage() {
         <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filteredStudents.map(student => (
             <StudentCard
-              key={String(student.id)} // Use string ID for key
+              key={String(student.id)} 
               student={student} 
               onView={() => handleViewStudent(String(student.id))}
               onEdit={() => handleEditStudent(String(student.id))}
               onDelete={() => handleDeleteStudent(String(student.id))}
-              isSelected={() => selectedStudentIdsForPrint.has(String(student.id))}
-              onSelectToggle={(id, isChecked) => toggleStudentSelectionForPrint(String(id))}
+              isSelected={selectedStudentIdsForPrint.has(String(student.id))}
+              onSelectToggle={handleCardSelectToggle} // Use the wrapper function
             />
           ))}
         </div>

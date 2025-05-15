@@ -1,16 +1,15 @@
-// app/students/print-ids/page.tsx
+// File: app/students/print-ids/_components/PrintIdsContent.tsx
 'use client';
 
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { StudentIdData } from '@/types';
-import { IdCardComponent } from '@/components/student/id-card';
+import { StudentIdData } from '@/types'; // Ensure this is imported
+import { IdCardComponent } from '@/components/student/id-card'; // Assuming this exists
 import { Button } from '@/components/ui/button';
-import { Icons } from '@/components/icons'; // Assuming you have a Print icon
+import { Icons } from '@/components/icons';
 import { LoaderCircle } from 'lucide-react';
-import { Suspense } from 'react';
 
-const CARDS_PER_A4_PAGE = 8; // 2 columns, 4 rows on A4
+const CARDS_PER_A4_PAGE = 8;
 
 export default function PrintIdsContent() {
   const searchParams = useSearchParams();
@@ -19,19 +18,34 @@ export default function PrintIdsContent() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const studentsDataParam = searchParams.get('students');
-    if (studentsDataParam) {
-      try {
-        const parsedStudents: StudentIdData[] = JSON.parse(decodeURIComponent(studentsDataParam));
-        setStudentsToPrint(parsedStudents);
-      } catch (err) {
-        console.error("Failed to parse student data for printing:", err);
-        setError("Invalid student data provided. Please try again.");
-      }
+    const idsParam = searchParams.get('ids');
+    if (idsParam) {
+      const fetchStudentDataForPrint = async () => {
+        setIsLoading(true);
+        setError(null);
+        try {
+          const response = await fetch(`/api/user/id-data?ids=${idsParam}`);
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || "Failed to fetch student data for printing.");
+          }
+          const data: StudentIdData[] = await response.json();
+          if (data.length === 0) {
+            setError("No student data found for the provided IDs.");
+          }
+          setStudentsToPrint(data);
+        } catch (err: any) {
+          console.error("Failed to fetch student data for printing:", err);
+          setError(err.message || "An error occurred while fetching student data.");
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      fetchStudentDataForPrint();
     } else {
-      setError("No student data provided for printing.");
+      setError("No student IDs provided for printing.");
+      setIsLoading(false);
     }
-    setIsLoading(false);
   }, [searchParams]);
 
   const handlePrint = () => {
@@ -61,13 +75,12 @@ export default function PrintIdsContent() {
      return (
       <div className="container mx-auto p-8 text-center">
         <h1 className="text-3xl font-bold mb-6">Print Student IDs</h1>
-        <p className="text-lg text-gray-700 mb-8">No students selected for printing.</p>
+        <p className="text-lg text-gray-700 mb-8">No students found or selected for printing.</p>
         <Button onClick={() => window.close()} variant="outline">Close Tab</Button>
       </div>
     );
   }
 
-  // Chunk students for pagination on the print sheet
   const pages = [];
   for (let i = 0; i < studentsToPrint.length; i += CARDS_PER_A4_PAGE) {
     pages.push(studentsToPrint.slice(i, i + CARDS_PER_A4_PAGE));
@@ -90,13 +103,9 @@ export default function PrintIdsContent() {
           >
             <div className="grid grid-cols-2 gap-[4mm] h-full content-start">
               {pageStudents.map((student) => (
+                // Ensure IdCardComponent expects StudentIdData
                 <IdCardComponent key={student.id || student.username} student={student} />
               ))}
-              {/* Optional: Add empty placeholders to fill the grid if page is not full */}
-              {/* Helps with consistent cutting if you're using a guillotine */}
-              {/* {Array(CARDS_PER_A4_PAGE - pageStudents.length).fill(null).map((_, i) => (
-                <div key={`empty-${pageIndex}-${i}`} className="w-[85.6mm] h-[53.98mm] border border-dashed border-gray-200 print:border-transparent"></div>
-              ))} */}
             </div>
           </div>
         ))}
@@ -105,8 +114,8 @@ export default function PrintIdsContent() {
       <style jsx global>{`
         @media print {
           body {
-            -webkit-print-color-adjust: exact !important; /* Chrome, Safari */
-            print-color-adjust: exact !important; /* Firefox */
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
             margin: 0 !important;
             padding: 0 !important;
             background-color: white !important;
@@ -117,20 +126,20 @@ export default function PrintIdsContent() {
           .print-page {
             box-shadow: none !important;
             margin: 0 !important;
-            padding: 0 !important; /* This ensures content goes to edge if @page margin is 0 */
+            padding: 0 !important;
             width: 100% !important;
-            height: 100% !important; /* Or min-height: 100vh */
+            height: 100% !important;
           }
-          .print-page-break-after {
+           .print-page-break-after {
             page-break-after: always !important;
           }
           .print-page-break-after:last-child {
-            page-break-after: auto !important; /* Avoid extra blank page */
+            page-break-after: auto !important;
           }
         }
         @page {
           size: A4 portrait;
-          margin: 0mm; /* Controls browser's default print margins. Set to 0 if page itself has padding. */
+          margin: 0mm;
         }
       `}</style>
     </>

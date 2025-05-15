@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { hashPassword } from '@/lib/password-utils'; // Ensure this utility exists
 import * as z from 'zod';
 import { Role } from '@prisma/client';
+import { generateBarcode } from '@/lib/barcodeGenerator';
 
 // Zod schema for input validation
 const signupSchema = z.object({
@@ -61,6 +62,7 @@ export async function POST(request: NextRequest) {
         email,
         password: hashedPassword,
         role: Role.Student, // Explicitly set, though it's the default
+        barcode_id: generateBarcode(), // Generate a unique barcode ID
       },
     });
 

@@ -63,7 +63,7 @@ export function StudentProfileModal({
           alert("Data too long for URL. Cannot print."); // Basic alert
           return;
       }
-      window.open(`/students/print-ids?students=${queryParams}`, '_blank');
+      window.open(`/students/print-ids?students=${student.id}`, '_blank');
     } catch (e) {
         alert("Error preparing ID for printing.");
         console.error("Error stringifying/encoding for print:", e);
@@ -71,7 +71,17 @@ export function StudentProfileModal({
   };
 
   const studentFullName = student.name || `${student.firstName || ''} ${student.lastName || ''}`.trim();
-  const studentYearDisplay = student.batch ? `${student.batch}${['st', 'nd', 'rd'][Number(student.batch)-1] || 'th'} Year` : "Freshman";
+  
+  let yearSuffix = 'th';
+  if (student.batch) {
+    const batchNum = parseInt(student.batch, 10);
+    if (!isNaN(batchNum)) {
+        if (batchNum % 10 === 1 && batchNum % 100 !== 11) yearSuffix = 'st';
+        else if (batchNum % 10 === 2 && batchNum % 100 !== 12) yearSuffix = 'nd';
+        else if (batchNum % 10 === 3 && batchNum % 100 !== 13) yearSuffix = 'rd';
+    }
+  }
+  const studentYearDisplay = student.batch ? `${student.batch}${yearSuffix} Year` : "Freshman";
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -84,7 +94,7 @@ export function StudentProfileModal({
         <div className="grid md:grid-cols-[150px_1fr] gap-6 py-4">
           <div className="flex flex-col items-center space-y-3">
             <Avatar className="h-36 w-36 border-2">
-              <AvatarImage src={student.photo || undefined} alt={studentFullName} />
+              <AvatarImage src={student.photo || undefined} alt={studentFullName} className="object-cover" />
               <AvatarFallback className="text-4xl">
                 {getInitials(studentFullName)}
               </AvatarFallback>
