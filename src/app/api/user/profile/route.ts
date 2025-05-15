@@ -12,6 +12,7 @@ import { generateBarcode } from "@/lib/barcodeGenerator";
 import { hashPassword } from "@/lib/password-utils";
 import { handleFileUpload, deleteFile } from "@/lib/fileUpload"; // Ensure this path is correct
 import { departments, GENDERS, YEARS as YEAR_LEVELS, Year } from "@/types"; // Renamed YEARS to YEAR_LEVELS for clarity
+import { now } from "next-auth/client/_utils";
 
 // Zod schema for updating the current user's profile (PATCH)
 const updateUserProfileSchema = z.object({
@@ -93,6 +94,8 @@ export async function PATCH(req: NextRequest) {
       gender?: typeof GENDERS[number] | null; // Use GENDERS type
       photo?: string | null;
       department?: typeof departments[number] | null;
+      completed: boolean;
+      completedAt?: Date | null; // Not used in this context
       // barcode_id for own profile update? Typically generated once.
     } = {
       name: `${firstName} ${lastName}`.trim(),
@@ -100,6 +103,8 @@ export async function PATCH(req: NextRequest) {
       gender: gender || null,
       phone,
       department: department || null,
+      completed: true,
+      completedAt: new Date(),
     };
 
     const pictureFile = formData.get("picture") as File | null; // Assuming 'picture' for own profile

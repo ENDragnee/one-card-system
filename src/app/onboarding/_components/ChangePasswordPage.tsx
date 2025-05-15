@@ -4,6 +4,9 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
+import { useState } from "react";
+import { useSession } from "next-auth/react";
+import { toast } from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -15,15 +18,19 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { OnboardingCard } from "@/components/OnboardingCard";
+import { OnboardingCard } from "@/components/OnboardingCard"; // Ensure this component exists
 
-const changePasswordFormSchema = z.object({
-  newPassword: z.string().min(8, { message: "Password must be at least 8 characters." }),
-  confirmPassword: z.string(),
-}).refine((data) => data.newPassword === data.confirmPassword, {
-  message: "Passwords do not match.",
-  path: ["confirmPassword"], // Path to the field to attach the error to
-});
+const changePasswordFormSchema = z
+  .object({
+    newPassword: z
+      .string()
+      .min(8, { message: "Password must be at least 8 characters." }),
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: "Passwords do not match.",
+    path: ["confirmPassword"],
+  });
 
 type ChangePasswordFormValues = z.infer<typeof changePasswordFormSchema>;
 
@@ -31,7 +38,13 @@ interface ChangePasswordPageProps {
   onChangePasswordSuccess: () => void;
 }
 
-export function ChangePasswordPage({ onChangePasswordSuccess }: ChangePasswordPageProps) {
+export function ChangePasswordPage({
+  onChangePasswordSuccess,
+}: ChangePasswordPageProps) {
+  const { update: updateSession } = useSession();
+  const [isLoading, setIsLoading] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
+
   const form = useForm<ChangePasswordFormValues>({
     resolver: zodResolver(changePasswordFormSchema),
     defaultValues: {
@@ -40,10 +53,40 @@ export function ChangePasswordPage({ onChangePasswordSuccess }: ChangePasswordPa
     },
   });
 
-  function onSubmit(data: ChangePasswordFormValues) {
-    console.log("Change password data:", data);
-    // TODO: Implement actual password change logic
-    onChangePasswordSuccess();
+  async function onSubmit(data: ChangePasswordFormValues) {
+    setIsLoading(true);
+    setApiError(null);
+    try {
+      const response = await fetch("/api/user/change-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ newPassword: data.newPassword }),
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        throw new Error(responseData.message || "Failed to change password.");
+      }
+
+      toast.success("Password changed successfully!");
+
+      // Update the session to reflect changedPassword: true
+      // This will be picked up by the jwt callback if configured for "update" trigger
+      await updateSession({ changedPassword: true });
+
+      onChangePasswordSuccess(); // Callback to parent component
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "An unknown error occurred.";
+      setApiError(errorMessage);
+      toast.error(errorMessage);
+      console.error("Change password error:", err);
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   return (
@@ -60,7 +103,12 @@ export function ChangePasswordPage({ onChangePasswordSuccess }: ChangePasswordPa
               <FormItem>
                 <FormLabel>New Password</FormLabel>
                 <FormControl>
-                  <Input type="password" placeholder="Enter new password" {...field} />
+                  <Input
+                    type="password"
+                    placeholder="Enter new password"
+                    {...field}
+                    disabled={isLoading}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -73,14 +121,22 @@ export function ChangePasswordPage({ onChangePasswordSuccess }: ChangePasswordPa
               <FormItem>
                 <FormLabel>Confirm New Password</FormLabel>
                 <FormControl>
-                  <Input type="password" placeholder="Confirm new password" {...field} />
+                  <Input
+                    type="password"
+                    placeholder="Confirm new password"
+                    {...field}
+                    disabled={isLoading}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-          <Button type="submit" className="w-full">
-            Set New Password
+          {apiError && (
+            <p className="text-sm font-medium text-destructive">{apiError}</p>
+          )}
+          <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLoading ? "Setting Password..." : "Set New Password"}
           </Button>
         </form>
       </Form>

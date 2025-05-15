@@ -9,6 +9,8 @@ declare module 'next-auth' {
       id: string; // User ID is typically a string in NextAuth session
       role: Role;
       username?: string;
+      changedPassword?: boolean; // Added custom property
+      completed?: boolean; // Added custom property
     } & DefaultSession['user']; // Keep existing properties like name, email, image
   }
 
@@ -17,6 +19,8 @@ declare module 'next-auth' {
     // id is already string in DefaultUser
     role: Role;
     username?: string; // Add this if you return it from authorize
+    changedPassword?: boolean; // Added custom property
+    completed?: boolean; // Added custom property
   }
 }
 
@@ -25,5 +29,7 @@ declare module 'next-auth/jwt' {
     id: string;
     role: Role;
     username?: string;
+    changedPassword?: boolean; // Added custom property
+    completed?: boolean; // Added custom property
   }
 }

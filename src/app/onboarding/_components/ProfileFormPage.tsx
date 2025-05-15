@@ -142,6 +142,7 @@ export function ProfileFormPage({ onProfileSaveSuccess, initialData }: ProfileFo
         formData.append("picture", data.picture);
     }
 
+
     try {
       const response = await fetch("/api/user/profile", {
         method: "PATCH",

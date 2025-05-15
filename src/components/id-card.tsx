@@ -1,17 +1,42 @@
 'use client'
 
 import Image from 'next/image'
-import { IdCardProps } from '../types/id-card'
 import { useEffect, useState } from 'react'
 
+// Define the props interface directly in this file
+export interface IdCardProps {
+  photoUrl?: string;
+  fullName: string;
+  universityName?: string;
+  universityLogoUrl?: string;
+  idCardTitle?: string;
+  idNumber: string;
+  department: string;
+  academicYear: string; // e.g., "3rd Year", "2023-2024"
+  qrCodeUrl?: string; // URL to the generated QR code image
+  issueDate?: string;
+  expiryDate?: string;
+  phone?: string; // Optional
+}
+
+// Default values can be managed here or passed as props
+const DEFAULT_UNIVERSITY_LOGO = "/aastu-logo.png"; // Replace with Samara Uni logo
+const DEFAULT_QR_CODE_PLACEHOLDER = "/placeholder-qr.svg"; // A generic QR placeholder
+const DEFAULT_PHOTO_PLACEHOLDER = "/placeholder.svg"; // Generic photo placeholder
+
 export default function IdCard({
-  photoUrl,
+  photoUrl = DEFAULT_PHOTO_PLACEHOLDER,
   fullName,
-  university = 'AASTU',
-  role = 'AT',
+  universityName = 'SAMARA UNIVERSITY',
+  universityLogoUrl = DEFAULT_UNIVERSITY_LOGO,
+  idCardTitle = 'STUDENT IDENTIFICATION',
   idNumber,
-  phone,
-  honor,
+  department,
+  academicYear,
+  qrCodeUrl = DEFAULT_QR_CODE_PLACEHOLDER,
+  issueDate = '09/2023', // Example
+  expiryDate = '09/2027', // Example
+  phone, // Optional
 }: IdCardProps) {
   const [mounted, setMounted] = useState(false);
 
@@ -20,93 +45,126 @@ export default function IdCard({
   }, [])
 
   if (!mounted) {
+    // You could return a skeleton loader here for better UX
     return null
   }
 
+  // Define color palette for easier management if needed elsewhere
+  const colors = {
+    primaryBrand: '#1B3149', // Dark Blue
+    secondaryBrand: '#C5A572', // Gold
+    gradientTo: '#DBCA9A',   // Lighter Gold for gradient
+    background: '#FFFFFF',
+    textOnPrimary: '#FFFFFF', // Text on dark blue
+    textOnSecondary: '#1B3149', // Text on gold
+    textPrimary: '#1B3149', // Main text color
+    textSecondary: '#555555', // Lighter text for less emphasis
+  };
+
   return (
-    <div className="w-[400px] min-h-[650px] bg-white shadow-xl rounded-lg overflow-hidden relative">
-      {/* Gold bars at top and bottom */}
-      <div className="h-4 bg-gradient-to-r from-[#C5A572] to-[#DBCA9A]" />
-      
-      {/* Header */}
-      <div className="p-4 text-center bg-white">
-        <div className="flex justify-between items-center px-4">
+    <div 
+      className="w-[350px] min-h-[550px] shadow-xl rounded-lg overflow-hidden relative flex flex-col"
+      style={{ backgroundColor: colors.background }}
+    >
+      {/* Top Gold Bar */}
+      <div 
+        className="h-3"
+        style={{ background: `linear-gradient(to right, ${colors.secondaryBrand}, ${colors.gradientTo})` }} 
+      />
+
+      {/* Header Section */}
+      <div className="p-4 text-center border-b-2" style={{ borderColor: colors.secondaryBrand }}>
+        <div className="flex items-center justify-center space-x-3">
           <Image
-            src="/usae-logo.png"
-            alt="USAE Logo"
-            width={50}
-            height={50}
-            className="w-12 h-12"
+            src={universityLogoUrl}
+            alt={`${universityName} Logo`}
+            width={45}
+            height={45}
+            className="object-contain"
           />
-          <div className="flex-1 px-4">
-            <h1 className="text-[#1B3149] text-xl font-bold leading-tight">
-              Universities Sport Association Ethiopia
-            </h1>
-          </div>
-          <Image
-            src="/aastu-logo.png"
-            alt="AASTU Logo"
-            width={50}
-            height={50}
-            className="w-12 h-12"
-          />
+          <h1 
+            className="text-xl font-bold leading-tight tracking-wide"
+            style={{ color: colors.primaryBrand }}
+          >
+            {universityName.toUpperCase()}
+          </h1>
         </div>
-        
+        {idCardTitle && (
+          <p className="text-xs font-semibold mt-1" style={{ color: colors.textSecondary, letterSpacing: '0.05em' }}>
+            {idCardTitle.toUpperCase()}
+          </p>
+        )}
       </div>
 
       {/* Photo Section */}
-      <div className="flex justify-center p-4">
-        <div className="relative w-48 h-48 rounded-3xl overflow-hidden border-4 border-[#1B3149]">
+      <div className="flex justify-center py-5 px-4">
+        <div 
+          className="relative w-40 h-48 rounded-md overflow-hidden border-2"
+          style={{ borderColor: colors.primaryBrand }}
+        >
           <Image
-            src={photoUrl || "/placeholder.svg?height=192&width=192"}
+            src={photoUrl}
             alt="Profile Photo"
             fill
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw" // Example sizes
             className="object-cover"
+            priority // Good for LCP elements
           />
         </div>
       </div>
 
-      {/* Name and Details */}
-      <div className="text-center px-4">
-        <h2 className="text-[#1B3149] text-4xl font-bold tracking-wider mb-4">
+      {/* Details Section */}
+      <div className="px-6 pb-4 flex-grow">
+        <h2 
+          className="text-2xl font-bold text-center mb-4 tracking-wide"
+          style={{ color: colors.primaryBrand }}
+        >
           {fullName}
         </h2>
-        <div className="bg-[#1B3149] text-[#C5A572] text-2xl font-bold py-2 px-8 rounded-full inline-block mb-8">
-          {university}
+        
+        <div className="space-y-2.5 text-sm">
+          <div className="flex justify-between">
+            <span className="font-semibold" style={{ color: colors.textPrimary }}>ID NO:</span>
+            <span style={{ color: colors.textPrimary }}>{idNumber}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="font-semibold" style={{ color: colors.textPrimary }}>DEPARTMENT:</span>
+            <span style={{ color: colors.textPrimary }}>{department}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="font-semibold" style={{ color: colors.textPrimary }}>YEAR:</span>
+            <span style={{ color: colors.textPrimary }}>{academicYear}</span>
+          </div>
+          {phone && (
+            <div className="flex justify-between">
+              <span className="font-semibold" style={{ color: colors.textPrimary }}>PHONE:</span>
+              <span style={{ color: colors.textPrimary }}>{phone}</span>
+            </div>
+          )}
+          <div className="flex justify-between pt-1">
+            <span className="font-semibold" style={{ color: colors.textSecondary }}>ISSUED: {issueDate}</span>
+            <span className="font-semibold" style={{ color: colors.textSecondary }}>EXPIRES: {expiryDate}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* QR Code and Bottom Bar Section */}
+      <div className="mt-auto"> {/* Pushes this section to the bottom */}
+        <div className="p-4 flex justify-center">
+          <Image
+            src={qrCodeUrl} // You'd pass the actual QR code image URL here
+            alt="QR Code"
+            width={80}
+            height={80}
+          />
         </div>
         
-        <div className="space-y-2 text-left max-w-xs mx-auto">
-          <div className="flex justify-between items-center">
-            <span className="text-[#1B3149] text-lg">ID Number</span>
-            <span className="text-[#1B3149] text-lg">: {idNumber}</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-[#1B3149] text-lg">Phone</span>
-            <span className="text-[#1B3149] text-lg">{phone}</span>
-          </div>
-        </div>
-
-        <div className="absolute top-[500px] right-4">
-          <div className="w-12 h-12 bg-[#1B3149] flex items-center justify-center">
-            <span className="text-white text-xl font-bold">{role}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Barcode */}
-      <div className="mt-8 p-4 flex justify-center">
-        <Image
-          src="/placeholder.svg?height=80&width=300"
-          alt="Barcode"
-          width={300}
-          height={80}
-          className="w-full max-w-[300px]"
+        {/* Bottom Gold Bar */}
+        <div 
+          className="h-5" // Slightly thicker bottom bar
+          style={{ background: `linear-gradient(to right, ${colors.secondaryBrand}, ${colors.gradientTo})` }} 
         />
       </div>
-
-      {/* Bottom gold bar */}
-      <div className="h-4 bg-gradient-to-r from-[#C5A572] to-[#DBCA9A] mt-4" />
     </div>
   )
 }
-

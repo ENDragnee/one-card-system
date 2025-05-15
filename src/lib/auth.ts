@@ -2,7 +2,7 @@
 import NextAuth, { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import prisma from '@/lib/prisma';
-import { verifyPassword } from '@/lib/password-utils'; // Assuming you have this utility
+import { verifyPassword } from '@/lib/password-utils'; // Ensure this utility exists
 import { Role } from '@prisma/client';
 
 export const authOptions: NextAuthOptions = {
@@ -24,7 +24,6 @@ export const authOptions: NextAuthOptions = {
           });
 
           if (!user || !user.password) {
-            // Standard error NextAuth uses for bad credentials
             throw new Error('CredentialsSignin');
           }
 
@@ -38,16 +37,17 @@ export const authOptions: NextAuthOptions = {
             id: user.id.toString(), // NextAuth User 'id' is string
             name: user.name,
             email: user.email,
-            role: user.role, // Include the role
+            role: user.role,
             username: user.username,
+            changedPassword: user.changedPassword, // <<< ADDED THIS
+            completed: user.completed, // <<< ADDED THIS
           };
         } catch (error) {
           console.error('Authorization Error:', error);
-          // Ensure 'CredentialsSignin' is thrown for client-side error handling consistency
           if (error instanceof Error && error.message === 'CredentialsSignin') {
             throw error;
           }
-          throw new Error('CredentialsSignin'); // Fallback generic auth error
+          throw new Error('CredentialsSignin');
         }
       },
     }),
@@ -56,20 +56,26 @@ export const authOptions: NextAuthOptions = {
     strategy: 'jwt',
   },
   pages: {
-    signIn: '/onboarding', // Your login page is at /onboarding
-    // signOut: '/auth/signout', // Default is fine
-    // error: '/auth/error', // Default for auth errors (e.g. CredentialsSignin)
+    signIn: '/onboarding',
   },
   callbacks: {
-    async jwt({ token, user }) {
-      // `user` object is available only on sign-in
+    async jwt({ token, user, trigger, session: newSessionDataFromUpdate }) {
+      // `user` object is available on sign-in
       if (user) {
         token.id = user.id;
-        token.role = user.role; // User interface already augmented
-        token.username = (user as any).username; // Cast if needed
-        // Persist other user properties to the token if desired
-        // token.name = user.name;
-        // token.email = user.email;
+        token.role = user.role;
+        token.username = user.username;
+        token.changedPassword = user.changedPassword; // <<< ADDED THIS
+        token.completed = user.completed; // <<< ADDED THIS
+      }
+
+      // Handle session updates via useSession().update()
+      if (trigger === "update" && newSessionDataFromUpdate) {
+        if (typeof newSessionDataFromUpdate.changedPassword === 'boolean') {
+          token.changedPassword = newSessionDataFromUpdate.changedPassword;
+        }
+        // Update other fields if necessary
+        // token.name = newSessionDataFromUpdate.name ?? token.name;
       }
       return token;
     },
@@ -79,8 +85,8 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id;
         session.user.role = token.role;
         session.user.username = token.username;
-        // session.user.name = token.name as string | null | undefined;
-        // session.user.email = token.email as string | null | undefined;
+        session.user.changedPassword = token.changedPassword; // <<< ADDED THIS
+        session.user.completed = token.completed; // <<< ADDED THIS
       }
       return session;
     },
