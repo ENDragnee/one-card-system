@@ -231,7 +231,7 @@ export default function StudentsPage() {
             toast({
                 title: "Too much data",
                 description: `Cannot print ${studentsToPrintData.length} IDs at once due to URL length limits. Please select fewer students. (Max ~20-30 depending on data size)`,
-                variant: "warning",
+                variant: "destructive",
                 duration: 7000,
             });
             return;
