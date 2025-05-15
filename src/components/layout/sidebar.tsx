@@ -12,8 +12,8 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { href: "/dashboard", title: "Dashboard", icon: "Dashboard" },
-  { href: "/students", title: "Students", icon: "Students" },
+  { href: "/admin/dashboard", title: "Dashboard", icon: "Dashboard" },
+  { href: "/admin/students", title: "Students", icon: "Students" },
   // Add more items here
 ];
 
@@ -22,8 +22,8 @@ export function Sidebar() {
 
   return (
     <aside className="hidden md:flex md:w-64 bg-card border-r flex-col p-6 space-y-8 shadow-sm">
-      <div className="text-2xl font-semibold text-primary text-center">
-        UniPortal
+      <div className="text-xl font-semibold text-primary text-center">
+        Samara University Portal
       </div>
       <nav className="flex-grow">
         <ul className="space-y-2">
@@ -54,9 +54,3 @@ export function Sidebar() {
     </aside>
   );
 }
-
-// Optional: For smaller screens, you might want a Sheet-based sidebar
-// import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-// import { Button } from "@/components/ui/button";
-// import { Menu } from "lucide-react";
-// export function MobileSidebar() { /* ... similar logic with Sheet ... */ }

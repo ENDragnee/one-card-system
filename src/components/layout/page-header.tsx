@@ -46,7 +46,7 @@ export function PageHeader({
               <span className="hidden md:inline">Search</span>
             </Button>
           )}
-          <Button variant="outline" className="ml-2" onClick={() => signOut()}>
+          <Button variant="outline" className="ml-2 hover:bg-red-600 hover:text-white" onClick={() => signOut()}>
             Sign Out
           </Button>
         </div>

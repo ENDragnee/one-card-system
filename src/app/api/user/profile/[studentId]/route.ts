@@ -1,0 +1,203 @@
+// app/api/students/[studentId]/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth/next";
+import { hashPassword } from "@/lib/password-utils";
+import prisma from "@/lib/prisma";
+import { authOptions } from "@/lib/auth"; // Ensure this path is correct
+import * as z from "zod";
+import { departments, GENDERS, YEARS, Year } from "@/types"; // Assuming YEARS is defined in types
+import { handleFileUpload, deleteFile } from "@/lib/fileUpload";
+
+// Zod schema for validating incoming form data for updating a student
+const updateStudentFormSchema = z.object({
+  username: z.string().min(3, "Username must be at least 3 characters.").optional(),
+  firstName: z.string().min(1, "First name is required.").optional(),
+  lastName: z.string().min(1, "Last name is required.").optional(),
+  email: z.string().email("Invalid email address.").optional(),
+  password: z.string().optional().or(z.literal("")), // Empty string means no change
+  gender: z.enum(GENDERS).optional().nullable(),
+  phone: z.string().optional().nullable(),
+  year: z.coerce.number().min(1).max(YEARS[YEARS.length - 1] || 5).optional().nullable() as z.ZodType<Year | null | undefined>,
+  department: z.enum(departments).optional().nullable(),
+  removePhoto: z.string().transform(val => val === 'true').optional().default('false'), // Comes as string from FormData
+  // photoFile is not in schema, handled separately from FormData
+});
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: { studentId: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session || session.user.role !== "Registrar") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const studentIdInt = parseInt(params.studentId, 10);
+    if (isNaN(studentIdInt)) {
+      return NextResponse.json({ error: "Invalid student ID format" }, { status: 400 });
+    }
+
+    const formData = await req.formData();
+    const rawData: Record<string, any> = {};
+    
+    // Extract and preprocess data from FormData
+    for (const [key, value] of formData.entries()) {
+      if (key === "photoFile") continue; // Handled separately
+
+      if (key === 'password' && value === '') {
+        // an empty password string means "no change", so we don't include it in rawData for Zod
+        // Zod schema will treat it as undefined if not present
+        continue;
+      } else if (typeof value === 'string' && value === '' && ['phone', 'gender', 'department', 'year'].includes(key)) {
+          rawData[key] = null; // Convert empty strings for optional fields to null
+      } else if (key === 'year' && typeof value === 'string' && value !== '') {
+          const numValue = parseInt(value, 10);
+          rawData[key] = isNaN(numValue) ? null : numValue;
+      } else {
+          rawData[key] = value;
+      }
+    }
+    
+    const validationResult = updateStudentFormSchema.safeParse(rawData);
+
+    if (!validationResult.success) {
+      console.error("Validation Errors:", validationResult.error.flatten().fieldErrors);
+      return NextResponse.json(
+        { error: "Invalid input", details: validationResult.error.flatten().fieldErrors },
+        { status: 400 }
+      );
+    }
+
+    const validatedData = validationResult.data;
+    const dataToUpdate: Record<string, any> = {};
+
+    // Map validated data to Prisma update object
+    if (validatedData.username) dataToUpdate.username = validatedData.username;
+    if (validatedData.email) dataToUpdate.email = validatedData.email;
+    
+    if (validatedData.firstName || validatedData.lastName) {
+        // Fetch existing student to correctly merge names if only one part is provided
+        const currentStudentForName = await prisma.user.findUnique({
+            where: { id: studentIdInt },
+            select: { name: true }
+        });
+        const nameParts = currentStudentForName?.name?.split(" ") || ["", ""];
+        const currentFirstName = nameParts[0];
+        const currentLastName = nameParts.slice(1).join(" ");
+
+        const newFirstName = validatedData.firstName ?? currentFirstName;
+        const newLastName = validatedData.lastName ?? currentLastName;
+        dataToUpdate.name = `${newFirstName} ${newLastName}`.trim();
+    }
+
+    if (validatedData.password && validatedData.password.length > 0) {
+      if (validatedData.password.length < 6) {
+        return NextResponse.json({ error: "Password must be at least 6 characters if provided." }, { status: 400 });
+      }
+      dataToUpdate.password = await hashPassword(validatedData.password);
+    }
+    // If password is empty string or undefined, it's skipped (no change)
+
+    if (validatedData.gender !== undefined) dataToUpdate.gender = validatedData.gender;
+    if (validatedData.phone !== undefined) dataToUpdate.phone = validatedData.phone;
+    if (validatedData.department !== undefined) dataToUpdate.department = validatedData.department;
+    if (validatedData.year !== undefined) dataToUpdate.batch = validatedData.year ? String(validatedData.year) : null; // Map year to batch (string)
+
+    const existingStudent = await prisma.user.findUnique({ where: { id: studentIdInt }, select: { photo: true, role: true } });
+    if (!existingStudent || existingStudent.role !== 'Student') {
+      return NextResponse.json({ error: "Student not found" }, { status: 404 });
+    }
+
+    // Handle photo update/removal
+    const photoFile = formData.get("photoFile") as File | null; // Key from frontend form
+    const removePhotoFlag = validatedData.removePhoto;
+
+    if (removePhotoFlag) {
+      await deleteFile(existingStudent.photo);
+      dataToUpdate.photo = null;
+    } else if (photoFile && photoFile.size > 0) {
+      try {
+        await deleteFile(existingStudent.photo); // Delete old photo first
+        dataToUpdate.photo = await handleFileUpload(photoFile);
+      } catch (e: any) {
+        console.error("Photo upload error:", e);
+        return NextResponse.json({ error: e.message || "Photo upload failed" }, { status: 400 });
+      }
+    }
+    // If no new photoFile and no removePhotoFlag, existingStudent.photo remains unchanged unless explicitly set above.
+
+    if (Object.keys(dataToUpdate).length === 0) {
+        return NextResponse.json({ message: "No changes provided." }, { status: 200 });
+    }
+
+    const updatedStudent = await prisma.user.update({
+      where: { id: studentIdInt },
+      data: dataToUpdate,
+      select: {
+        id: true, name: true, username: true, email: true, gender: true,
+        phone: true, photo: true, barcode_id: true, batch: true,
+        department: true, role: true, createdAt: true,
+      },
+    });
+
+    return NextResponse.json(updatedStudent);
+  } catch (error: any) {
+    console.error("Error updating student:", error);
+     if (error.code === 'P2002') { // Prisma unique constraint violation
+        const target = error.meta?.target as string[] | undefined;
+        if (target?.includes('username') && target?.includes('email')) {
+            return NextResponse.json({ error: "Username and Email already exist for another user." }, { status: 409 });
+        } else if (target?.includes('username')) {
+            return NextResponse.json({ error: "Username already exists for another user." }, { status: 409 });
+        } else if (target?.includes('email')) {
+            return NextResponse.json({ error: "Email already exists for another user." }, { status: 409 });
+        }
+        return NextResponse.json({ error: "A unique constraint was violated." }, { status: 409 });
+    }
+    return NextResponse.json(
+      { error: "An internal server error occurred while updating student." },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: { studentId: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session || session.user.role !== "Registrar") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const studentIdInt = parseInt(params.studentId, 10);
+    if (isNaN(studentIdInt)) {
+      return NextResponse.json({ error: "Invalid student ID" }, { status: 400 });
+    }
+
+    const student = await prisma.user.findUnique({
+      where: { id: studentIdInt },
+    });
+
+    if (!student || student.role !== 'Student') {
+      return NextResponse.json({ error: "Student not found" }, { status: 404 });
+    }
+
+    // Delete photo file if it exists
+    await deleteFile(student.photo);
+
+    await prisma.user.delete({
+      where: { id: studentIdInt },
+    });
+
+    return NextResponse.json({ message: "Student deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting student:", error);
+    return NextResponse.json(
+      { error: "Failed to delete student" },
+      { status: 500 }
+    );
+  }
+}

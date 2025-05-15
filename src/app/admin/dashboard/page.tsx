@@ -10,7 +10,6 @@ import {
 } from "@/components/ui/card";
 import { initialStudents, departments as departmentList } from "@/lib/data"; // Use your actual data source
 import { Student } from "@/types";
-import { Sidebar } from "@/components/layout/sidebar";
 
 
 interface AnalyticsCardProps {

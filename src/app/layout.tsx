@@ -5,8 +5,8 @@ import "./globals.css";
 import SessionProviderWrapper from "@/components/SessionWarpper";
 
 export const metadata = {
-  title: "USAE Registration",
-  description: "A registration system for USAE",
+  title: "Samar University Registration",
+  description: "A Registration system for Samara university",
   icons: {
     icon: "/favicon.ico"
   },

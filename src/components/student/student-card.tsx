@@ -17,9 +17,10 @@ interface StudentCardProps {
   student: Student;
   onView: (studentId: string) => void;
   onEdit: (studentId: string) => void;
+  onDelete?: (studentId: string) => void;
 }
 
-export function StudentCard({ student, onView, onEdit }: StudentCardProps) {
+export function StudentCard({ student, onView, onEdit, onDelete }: StudentCardProps) {
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
   }
@@ -28,15 +29,15 @@ export function StudentCard({ student, onView, onEdit }: StudentCardProps) {
     <Card className="overflow-hidden">
       <CardContent className="p-4 flex items-start space-x-4">
         <Avatar className="h-16 w-16 border">
-          <AvatarImage src={student.pictureUrl} alt={`${student.firstName} ${student.lastName}`} />
+          <AvatarImage src={student.photo} alt={`${student.firstName} ${student.lastName}`} />
           <AvatarFallback className="student-card-avatar-placeholder">
-            {getInitials(`${student.firstName} ${student.lastName}`)}
+            {getInitials(`${student.name}`)}
           </AvatarFallback>
         </Avatar>
         <div className="flex-grow">
-          <h3 className="text-lg font-semibold">{`${student.firstName} ${student.lastName}`}</h3>
-          <p className="text-sm text-muted-foreground">ID: {student.id}</p>
-          <p className="text-sm text-muted-foreground">{student.department} - Year {student.year}</p>
+          <h3 className="text-lg font-semibold">{`${student.name}`}</h3>
+          <p className="text-sm text-muted-foreground">ID: {student.username}</p>
+          <p className="text-sm text-muted-foreground">{student.department} - Year {student.batch}</p>
         </div>
         <div className="flex flex-col space-y-2">
           <Button variant="outline" size="sm" onClick={() => onView(student.id)} className="w-full justify-start">
@@ -44,6 +45,9 @@ export function StudentCard({ student, onView, onEdit }: StudentCardProps) {
           </Button>
           <Button variant="default" size="sm" onClick={() => onEdit(student.id)} className="w-full justify-start">
             <Icons.Edit className="h-4 w-4 mr-2" /> Edit
+          </Button>
+          <Button variant="default" size="sm" onClick={() => onDelete?.(student.id)} className="w-full justify-start hover:bg-red-500 hover:text-white">
+            <Icons.Delete className="h-4 w-4 mr-2" /> Delete
           </Button>
         </div>
       </CardContent>

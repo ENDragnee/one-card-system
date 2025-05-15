@@ -9,6 +9,10 @@ import { Role } from "@prisma/client";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { generateBarcode } from "@/lib/barcodeGenerator";
+import { hashPassword } from "@/lib/password-utils"; // Assuming you have a hashPassword function
+import { handleFileUpload } from "@/lib/fileUpload"; // Assuming you have a file upload utility
+import { departments } from "@/types";
+
 
 
 // If you use NextAuth.js:
@@ -27,6 +31,22 @@ const updateUserProfileSchema = z.object({
   department: z.string().optional().or(z.literal("")).transform(val => val === "" ? null : val), // Transform empty string to null
 });
 
+const createStudentSchema = z.object({
+  firstName: z.string().min(1, "Full name is required."),
+  lastName: z.string().min(1, "Full name is required."),
+  username: z.string().min(3, "Username must be at least 3 characters."),
+  email: z.string().email("Invalid email address."),
+  password: z.string().min(6, "Password must be at least 6 characters."),
+  phone: z.string().optional().or(z.literal("")).transform(val => val === "" ? null : val), // Transform empty string to null
+  gender: z.enum(["male", "female" ], {
+    errorMap: () => ({ message: "Please select a valid grnder." }),
+  }),
+  department: z.enum(departments, {
+    errorMap: () => ({ message: "Please select a valid department." }),
+  }),
+  batch: z.string().optional().or(z.literal("")).transform(val => val === "" ? null : val), // Transform empty string to null
+});
+
 // --- AUTHENTICATION PLACEHOLDER ---
 // Replace this with your actual function to get the authenticated user's ID
 async function getCurrentUserId(req: NextRequest): Promise<number | null> {
@@ -40,12 +60,7 @@ async function getCurrentUserId(req: NextRequest): Promise<number | null> {
   }
   return null;
 
-//   // !!! TEMPORARY HARDCODED USER ID FOR DEVELOPMENT !!!
-//   // !!! REPLACE THIS WITH YOUR ACTUAL AUTHENTICATION LOGIC !!!
-//   console.warn("SECURITY WARNING: Using hardcoded user ID 1 for profile update. Replace with actual authentication immediately!");
-//   return 1; // Example: return user ID 1.
 }
-// --- END AUTHENTICATION PLACEHOLDER ---
 
 export async function PATCH(req: NextRequest) {
   try {
@@ -187,3 +202,125 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
+export async function GET(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session || session.user.role !== "Registrar") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const students = await prisma.user.findMany({
+      where: {
+        role: "Student",
+      },
+      select: {
+        id: true,
+        name: true,
+        username: true,
+        email: true,
+        gender: true,
+        phone: true,
+        photo: true,
+        barcode_id: true,
+        batch: true,
+        department: true,
+        role: true,
+        createdAt: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    return NextResponse.json(students);
+  } catch (error) {
+    console.error("Error fetching students:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch students" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session || session.user.role !== "Registrar") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const formData = await req.formData();
+    const rawData: Record<string, any> = {};
+    formData.forEach((value, key) => {
+      // Handle empty strings for optional fields by converting them to null
+      if (typeof value === 'string' && value === '') {
+          rawData[key] = null;
+      } else {
+          rawData[key] = value;
+      }
+    });
+
+    const validationResult = createStudentSchema.safeParse(rawData);
+    if (!validationResult.success) {
+      return NextResponse.json(
+        { error: "Invalid input", details: validationResult.error.flatten().fieldErrors },
+        { status: 400 }
+      );
+    }
+
+    const { firstName, lastName, username, email, password, gender, phone, batch, department } = validationResult.data;
+
+    // Check for existing user
+    const existingUserByEmail = await prisma.user.findUnique({ where: { email } });
+    if (existingUserByEmail) {
+      return NextResponse.json({ error: "Email already in use" }, { status: 409 });
+    }
+    const existingUserByUsername = await prisma.user.findUnique({ where: { username } });
+    if (existingUserByUsername) {
+      return NextResponse.json({ error: "Username already in use" }, { status: 409 });
+    }
+
+    const hashedPassword = await hashPassword(password);
+    const photoFile = formData.get("photo") as File | null;
+    let photoPath: string | null = null;
+
+    if (photoFile && photoFile.size > 0) {
+      try {
+        photoPath = await handleFileUpload(photoFile);
+      } catch (e: any) {
+        return NextResponse.json({ error: e.message || "Photo upload failed" }, { status: 400 });
+      }
+    }
+    
+    const newStudent = await prisma.user.create({
+      data: {
+        name: `${firstName} ${lastName}`.trim(),
+        username,
+        email,
+        password: hashedPassword,
+        gender: gender || null,
+        phone: phone || null,
+        photo: photoPath,
+        batch: batch || null,
+        department: department || null,
+        role: "Student", // Explicitly set role
+      },
+      select: { // Select fields to return, excluding password
+        id: true, name: true, username: true, email: true, gender: true,
+        phone: true, photo: true, barcode_id: true, batch: true,
+        department: true, role: true, createdAt: true,
+      },
+    });
+
+    return NextResponse.json(newStudent, { status: 201 });
+  } catch (error: any) {
+    console.error("Error creating student:", error);
+     if (error.code === 'P2002') { // Prisma unique constraint violation
+        return NextResponse.json({ error: "Username or email already exists." }, { status: 409 });
+    }
+    return NextResponse.json(
+      { error: "Failed to create student" },
+      { status: 500 }
+    );
+  }
+}

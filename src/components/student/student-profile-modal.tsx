@@ -44,16 +44,16 @@ export function StudentProfileModal({
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[650px]">
         <DialogHeader>
-          <DialogTitle>{`${student.firstName} ${student.lastName}`}'s Profile</DialogTitle>
+          <DialogTitle>{`${student.name}`}'s Profile</DialogTitle>
           <DialogDescription>Detailed information about the student.</DialogDescription>
         </DialogHeader>
         
         <div className="grid md:grid-cols-[150px_1fr] gap-6 py-4">
           <div className="flex flex-col items-center space-y-3">
             <Avatar className="h-36 w-36 border-2">
-              <AvatarImage src={student.pictureUrl} alt={student.firstName} />
+              <AvatarImage src={student.photo} alt={student.name} />
               <AvatarFallback className="text-4xl student-card-avatar-placeholder">
-                {getInitials(`${student.firstName} ${student.lastName}`)}
+                {getInitials(`${student.name}`)}
               </AvatarFallback>
             </Avatar>
             <Button variant="outline" size="sm" onClick={handlePrintId}>
@@ -61,12 +61,12 @@ export function StudentProfileModal({
             </Button>
           </div>
           <div className="space-y-3">
-            <ProfileDetail label="Full Name" value={`${student.firstName} ${student.lastName}`} />
-            <ProfileDetail label="Student ID" value={student.id} />
+            <ProfileDetail label="Full Name" value={`${student.name}`} />
+            <ProfileDetail label="Student ID" value={student.username} />
             <ProfileDetail label="Email" value={student.email} />
             <ProfileDetail label="Phone" value={student.phone || "N/A"} />
-            <ProfileDetail label="Department" value={student.department} />
-            <ProfileDetail label="Year" value={`${student.year}${['st', 'nd', 'rd'][student.year-1] || 'th'} Year`} />
+            <ProfileDetail label="Department" value={student.department || "Freshman"} />
+            <ProfileDetail label="Year" value={`${student.batch}${['st', 'nd', 'rd'][student.year-1] || 'th'} Year`|| "Freshman"} />
             <ProfileDetail label="Gender" value={student.gender} />
           </div>
         </div>
