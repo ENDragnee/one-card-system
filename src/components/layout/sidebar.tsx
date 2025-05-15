@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Icons } from "@/components/icons";
 import { cn } from "@/lib/utils"; // Shadcn utility for classnames
-
 interface NavItem {
   href: string;
   title: string;
@@ -22,7 +21,7 @@ export function Sidebar() {
 
   return (
     <aside className="hidden md:flex md:w-64 bg-card border-r flex-col p-6 space-y-8 shadow-sm">
-      <div className="text-xl font-semibold text-primary text-center">
+      <div className="text-xl font-semibold text-primary text-center dark:text-[#DC9E82]">
         Samara University Portal
       </div>
       <nav className="flex-grow">
@@ -30,7 +29,6 @@ export function Sidebar() {
           {navItems.map((item) => {
             const IconComponent = Icons[item.icon];
             const isActive = pathname === item.href || (pathname.startsWith(item.href) && item.href !== "/");
-
 
             return (
               <li key={item.title}>

@@ -4,7 +4,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Icons } from "@/components/icons";
 import React from "react";
-import { signOut } from "next-auth/react";
 
 interface PageHeaderProps {
   title: string;
@@ -46,9 +45,6 @@ export function PageHeader({
               <span className="hidden md:inline">Search</span>
             </Button>
           )}
-          <Button variant="outline" className="ml-2 hover:bg-red-600 hover:text-white" onClick={() => signOut()}>
-            Sign Out
-          </Button>
         </div>
       )}
     </header>

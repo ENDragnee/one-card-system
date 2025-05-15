@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetTrigger, SheetClose } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Menu } from "lucide-react";
+import { UserProfileNav } from "@/components/layout/user-profile-nav"; // Corrected import path if @ is src
+import { DialogTitle } from "../ui/dialog";
 
 interface NavItem {
   href: string;
@@ -80,6 +82,9 @@ export function MobileSidebar() {
           {/* <div className="p-6 border-t">
             <p className="text-sm text-muted-foreground text-center">Mobile Footer</p>
           </div> */}
+          <DialogTitle >
+            <UserProfileNav />
+          </DialogTitle>
         </div>
       </SheetContent>
     </Sheet>

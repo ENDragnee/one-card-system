@@ -1,6 +1,7 @@
 // src/app/admin/layout.tsx
 import { Sidebar } from "@/components/layout/sidebar"; // Corrected import path if @ is src
 import { MobileSidebar } from "@/components/layout/mobile-sidebar"; // Assuming you have a mobile sidebar component
+import { UserProfileNav } from "@/components/layout/user-profile-nav"; // Corrected import path if @ is src
 
 export default function AdminLayout({
   children,
@@ -21,7 +22,7 @@ export default function AdminLayout({
             <MobileSidebar />
           </div>
           <div className="hidden md:flex items-center space-x-4">
-            <p>Admin User</p>
+            <UserProfileNav />
           </div>
         </header>
 

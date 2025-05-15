@@ -1,14 +1,12 @@
-// "use client";
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import SessionProviderWrapper from "@/components/SessionWarpper";
+import { ThemeWrapper } from "@/components/ThemeWrapper"
 
 export const metadata = {
   title: "Samar University Registration",
   description: "A Registration system for Samara university",
   icons: {
-    icon: "/favicon.ico"
+    icon: "/SUt.ico"
   },
 };
 
@@ -19,11 +17,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`antialiased`}
       >
-        <SessionProviderWrapper>{children}</SessionProviderWrapper> 
+        <ThemeWrapper>
+          <SessionProviderWrapper>
+            {children}
+          </SessionProviderWrapper> 
+        </ThemeWrapper>
       </body>
     </html>
   );
