@@ -87,7 +87,7 @@ export default function PrintIdsContent() {
   }
 
   return (
-    <>
+    <div className='flex flex-col items-center justify-center min-h-screen bg-gray-100'>
       <div className="fixed top-4 right-4 z-[100] print:hidden flex space-x-2">
         <Button onClick={() => window.close()} variant="outline">Close</Button>
         <Button onClick={handlePrint}>
@@ -142,6 +142,6 @@ export default function PrintIdsContent() {
           margin: 0mm;
         }
       `}</style>
-    </>
+    </div>
   );
 }
