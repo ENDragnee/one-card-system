@@ -5,7 +5,7 @@ import bcrypt from 'bcrypt';
  * @param {string} password - The plain-text password to hash.
  * @returns {Promise<string>} - A hashed version of the password.
  */
-export async function hashPassword(password) {
+export async function hashPassword(password: string) {
   const saltRounds = 10; // Adjust this value for desired hashing strength
   const salt = await bcrypt.genSalt(saltRounds);
   return await bcrypt.hash(password, salt);
@@ -17,6 +17,6 @@ export async function hashPassword(password) {
  * @param {string} hashedPassword - The hashed password to compare against.
  * @returns {Promise<boolean>} - True if the passwords match, false otherwise.
  */
-export async function verifyPassword(inputPassword, hashedPassword) {
+export async function verifyPassword(inputPassword: string, hashedPassword: string) {
   return await bcrypt.compare(inputPassword, hashedPassword);
 }
