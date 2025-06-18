@@ -1,20 +1,28 @@
 // app/api/auth/signup/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { hashPassword } from '@/lib/password-utils'; // Ensure this utility exists
+import { hashPassword } from '@/lib/password-utils';
 import * as z from 'zod';
 import { Role } from '@prisma/client';
 import { generateBarcode } from '@/lib/barcodeGenerator';
+// --- UPDATED IMPORT ---
+import { departments, yearMap, GENDERS } from '@/types'; // Import shared constants
 
-// Zod schema for input validation
+// --- UPDATED ZOD SCHEMA ---
 const signupSchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters").optional(), // Optional name
+  name: z.string().min(2, "Name must be at least 2 characters"),
   username: z.string()
-    .min(3, "Username must be at least 3 characters long.")
-    .regex(/^[a-zA-Z0-9_/]+$/, "Username can only contain letters, numbers, and underscores."),
+    .min(3, "ID must be at least 3 characters long.")
+    .regex(/^[a-zA-Z0-9_/]+$/, "ID can only contain letters, numbers, and underscores."),
   email: z.string().email("Invalid email address."),
   password: z.string().min(6, "Password must be at least 6 characters long."),
+  // Add new fields for validation
+  phone: z.string().optional().or(z.literal("")),
+  department: z.enum(departments),
+  year: z.string().refine(val => Object.keys(yearMap).includes(val)),
+  gender: z.enum(GENDERS),
 });
+
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,12 +31,13 @@ export async function POST(request: NextRequest) {
 
     if (!validation.success) {
       return NextResponse.json(
-        { errors: validation.error.flatten().fieldErrors },
+        { message: "Invalid input.", errors: validation.error.flatten().fieldErrors },
         { status: 400 }
       );
     }
 
-    const { name, username, email, password } = validation.data;
+    // --- DESTRUCTURE NEW FIELDS ---
+    const { name, username, email, password, phone, department, year, gender } = validation.data;
 
     // Check if username or email already exists
     const existingUserByUsername = await prisma.user.findUnique({
@@ -36,7 +45,7 @@ export async function POST(request: NextRequest) {
     });
     if (existingUserByUsername) {
       return NextResponse.json(
-        { message: "Username already exists." },
+        { message: "ID already exists." },
         { status: 409 } // Conflict
       );
     }
@@ -51,22 +60,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Hash the password
     const hashedPassword = await hashPassword(password);
 
-    // Create the new user (role defaults to Student as per Prisma schema)
+    // --- UPDATED PRISMA CREATE CALL ---
     const newUser = await prisma.user.create({
       data: {
-        name: name || null, // Handle optional name
+        name: name,
         username,
         email,
         password: hashedPassword,
-        role: Role.Student, // Explicitly set, though it's the default
-        barcode_id: generateBarcode(), // Generate a unique barcode ID
+        phone: phone || null, // Store empty string as null
+        department,
+        batch: year, // Map frontend 'year' to database 'batch' field
+        gender,
+        role: Role.Student,
+        barcode_id: generateBarcode(),
+        completed: true,
+        completedAt: new Date(),
       },
     });
 
-    // Don't return the password in the response
     const { password: _, ...userWithoutPassword } = newUser;
 
     return NextResponse.json(
@@ -76,11 +89,8 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error("Signup Error:", error);
-    // Check for Prisma unique constraint violation if Zod validation somehow missed it
-    // or if there's a race condition (though less likely with sequential checks).
-    // PrismaClientKnownRequestError P2002 is for unique constraint failures.
     if (error instanceof Error && (error as any).code === 'P2002') {
-         return NextResponse.json({ message: "Username or email already exists." }, { status: 409 });
+         return NextResponse.json({ message: "ID or email already exists." }, { status: 409 });
     }
     return NextResponse.json(
       { message: "An unexpected error occurred." },

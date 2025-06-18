@@ -7,6 +7,7 @@ import * as z from "zod";
 import { useState } from "react";
 import Link from "next/link";
 
+// --- UPDATED IMPORTS ---
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -17,19 +18,39 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { OnboardingCard } from "@/components/OnboardingCard"; // Assuming you have this
+import { OnboardingCard } from "@/components/OnboardingCard";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { departments, yearMap, GENDERS } from "@/types"; // Assuming constants are in @/types
 
+// --- UPDATED ZOD SCHEMA ---
 const signupFormSchema = z.object({
-  name: z.string().min(2, { message: "Name must be at least 2 characters." }).optional(),
+  name: z.string().min(2, { message: "Name must be at least 2 characters." }),
   username: z.string()
     .min(3, { message: "Username must be at least 3 characters." })
     .regex(/^[a-zA-Z0-9_/]+$/, "Username can only contain letters, numbers, left slash and underscores."),
   email: z.string().email({ message: "Please enter a valid email address." }),
+  phone: z.string().optional().or(z.literal("")), // Optional phone number
+  department: z.enum(departments, {
+    errorMap: () => ({ message: "Please select a department." }),
+  }),
+  year: z.string().refine(val => Object.keys(yearMap).includes(val), {
+    message: "Please select a valid year.",
+  }),
+  gender: z.enum(GENDERS, {
+    errorMap: () => ({ message: "Please select a gender." }),
+  }),
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
   confirmPassword: z.string().min(6, { message: "Please confirm your password." }),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords do not match.",
-  path: ["confirmPassword"], // Error will be shown on confirmPassword field
+  path: ["confirmPassword"],
 });
 
 type SignupFormValues = z.infer<typeof signupFormSchema>;
@@ -41,15 +62,21 @@ export function SignupForm() {
 
   const form = useForm<SignupFormValues>({
     resolver: zodResolver(signupFormSchema),
+    // --- UPDATED DEFAULT VALUES ---
     defaultValues: {
       name: "",
       username: "",
       email: "",
+      phone: "",
+      department: undefined,
+      year: undefined,
+      gender: undefined,
       password: "",
       confirmPassword: "",
     },
   });
 
+  // --- UPDATED ONSUBMIT FUNCTION ---
   async function onSubmit(data: SignupFormValues) {
     setIsLoading(true);
     setServerError(null);
@@ -64,6 +91,11 @@ export function SignupForm() {
           username: data.username,
           email: data.email,
           password: data.password,
+          // Add new fields to the request body
+          phone: data.phone,
+          department: data.department,
+          year: data.year,
+          gender: data.gender,
         }),
       });
 
@@ -72,7 +104,6 @@ export function SignupForm() {
       if (!response.ok) {
         setServerError(result.message || "Signup failed. Please try again.");
         if (result.errors) {
-          // Handle Zod validation errors from server if any (more specific)
           let errorMessages = "";
           for (const key in result.errors) {
             errorMessages += `${key}: ${result.errors[key].join(', ')}\n`;
@@ -81,7 +112,7 @@ export function SignupForm() {
         }
       } else {
         setSuccessMessage("Registration successful! You can now log in.");
-        form.reset(); // Clear the form
+        form.reset();
       }
     } catch (error) {
       console.error("Signup submission error:", error);
@@ -108,12 +139,14 @@ export function SignupForm() {
               {successMessage} Click <Link href="/onboarding" className="font-medium text-green-800 underline">here to login</Link>.
             </div>
           )}
+          
+          {/* --- UPDATED FORM FIELDS --- */}
           <FormField
             control={form.control}
             name="name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Full Name (Optional)</FormLabel>
+                <FormLabel>Full Name</FormLabel>
                 <FormControl>
                   <Input placeholder="Your full name" {...field} disabled={isLoading} />
                 </FormControl>
@@ -126,9 +159,9 @@ export function SignupForm() {
             name="username"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Username</FormLabel>
+                <FormLabel>University ID</FormLabel>
                 <FormControl>
-                  <Input placeholder="Choose a username" {...field} disabled={isLoading} />
+                  <Input placeholder="ETS1015/14" {...field} disabled={isLoading} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -142,6 +175,93 @@ export function SignupForm() {
                 <FormLabel>Email</FormLabel>
                 <FormControl>
                   <Input type="email" placeholder="your@email.com" {...field} disabled={isLoading} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+           <FormField
+            control={form.control}
+            name="phone"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Phone Number</FormLabel>
+                <FormControl>
+                  <Input type="tel" placeholder="09..." {...field} value={field.value || ""} disabled={isLoading} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="department"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Department</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select your department" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {departments.map((dept) => (
+                      <SelectItem key={dept} value={dept}>
+                        {dept}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="year"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Year</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value} disabled={isLoading}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select your Year" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {Object.entries(yearMap).map(([key, label]) => (
+                      <SelectItem key={key} value={key}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="gender"
+            render={({ field }) => (
+              <FormItem className="space-y-3">
+                <FormLabel>Gender</FormLabel>
+                <FormControl>
+                  <RadioGroup
+                    onValueChange={field.onChange}
+                    value={field.value}
+                    className="flex flex-col space-y-1 sm:flex-row sm:space-y-0 sm:space-x-4"
+                  >
+                    {GENDERS.map((genderValue) => (
+                       <FormItem key={genderValue} className="flex items-center space-x-3 space-y-0">
+                       <FormControl>
+                         <RadioGroupItem value={genderValue} disabled={isLoading}/>
+                       </FormControl>
+                       <FormLabel className="font-normal capitalize">{genderValue}</FormLabel>
+                     </FormItem>
+                    ))}
+                  </RadioGroup>
                 </FormControl>
                 <FormMessage />
               </FormItem>

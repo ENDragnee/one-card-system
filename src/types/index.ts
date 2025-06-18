@@ -17,29 +17,19 @@ export interface Student {
 }
 
 export const departments = [
-  "Freshman",
-  "Management",
-  "Economics",
-  "Accounting",
-  "Animal Science",
-  "Horticulture",
-  "Natural Resource Management",
-  "Plant Science",
-  "Clinical Nursing",
-  "Veterinary Medicine",
-  "Computer Science",
-  "Chemical Engineering",
-  "Biology",
-  "Chemistry",
-  "Physics",
-  "Mathematics",
-  "Geology/Earth Science",
-  "English Language and Literature",
-  "Ethiopian Language and Literature (Amharic)",
-  "Sociology",
-  "History and Heritage Management",
-  "Geography and Environmental Studies",
-  "Anthropology"
+  "Bachelor of Science Degree in Archtecture",
+  "Bachelor od Science Degree in Civil Engineering",
+  "Bachelor of Science Degree in Mining Engineering",
+  "Bachelor of Science Degree in Chemical Engineering",
+  "Bachelor of Science Degree in Environmental Engineering",
+  "Bachelor of Science Degree in Electrical and Computer Engineering",
+  "Bachelor of Science Degree in Electromechanical Engineering",
+  "Bachelor of Science Degree in Mechanical Engineering",
+  "Bachelor of Science Degree in Software Engineering",
+  "Bachelor of Science Degree in Food Sciences and Applied Nutrition",
+  "Bachelor of Science Degree in Geology",
+  "Bachelor of Science Degree in Biotechnology",
+  "Bachelor of Science Degree in Industrial Chemistry"
 ] as const;
 
 export type Department = typeof departments[number];
@@ -50,11 +40,9 @@ export type Gender = typeof GENDERS[number];
 export const YEARS = [1, 2, 3, 4, 5] as const; // 5 for 5th year+
 export type Year = typeof YEARS[number];
 export const yearMap: Record<number, string> = {
-  1: "1st Year",
-  2: "2nd Year",
-  3: "3rd Year",
   4: "4th Year",
-  5: "5th+ Year",
+  5: "5th Year",
+  6: "6th+ Year",
 };
 export type YearLabel = typeof yearMap[keyof typeof yearMap];
 

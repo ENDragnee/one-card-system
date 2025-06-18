@@ -92,7 +92,7 @@ export function LoginPage() {
   return (
     <div className="flex flex-col justify-center items-center my-40 p-4">
       <OnboardingCard
-        title="Welcome to Samara Univiersity Card Sysytem"
+        title={`Welcome to ${process.env.NEXT_PUBLIC_UNI_NAME} University Card System`}
         description="Please sign in to continue."
       >
         <div className="w-full max-w-md flex flex-col space-y-4 m-auto">

@@ -24,7 +24,7 @@ export default async function Loading() {
           Welcome to
         </h1>
         <p className="mt-2 text-3xl font-semibold text-gray-200">
-          Samara University Registrar System
+          {process.env.NEXT_PUBLIC_UNI_NAME} University Registrar System
         </p>
       </div>
       <LoginPage />

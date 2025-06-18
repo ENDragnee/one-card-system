@@ -3,8 +3,8 @@ import SessionProviderWrapper from "@/components/SessionWarpper";
 import { ThemeWrapper } from "@/components/ThemeWrapper"
 
 export const metadata = {
-  title: "Samar University Registration",
-  description: "A Registration system for Samara university",
+  title: process.env.NEXT_PUBLIC_UNI_NAME,
+  description: `A Registration system for ${process.env.NEXT_PUBLIC_UNI_NAME} university`,
   icons: {
     icon: "/SUt.ico"
   },
